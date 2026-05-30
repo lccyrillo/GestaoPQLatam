@@ -44,7 +44,7 @@ encerrar_instancias_anteriores()
 app = Flask(__name__, template_folder=_TEMPLATE_DIR)
 app.secret_key = 'gestaopqlatam-2025'
 
-APP_VERSAO = '1.01'
+APP_VERSAO = '1.02'
 
 db.init_db()
 
@@ -541,6 +541,56 @@ def api_info_clube():
         'nome_plano': calc.NOME_PLANO_CLUBE.get(clube['plano'], clube['plano']),
         'pq_mensal': calc.PQ_CLUBE_MENSAL.get(clube['plano'], 0),
     })
+
+
+# ── Simulação ─────────────────────────────────────────────────────────────────
+
+@app.route('/simulacao')
+def simulacao():
+    ano = ANO_ATUAL
+    atividades = db.listar_atividades(ano=ano)
+    pq_atual = round(sum(a['pq_estimado'] for a in atividades), 2)
+
+    cartoes = db.listar_cartoes(apenas_ativos=True)
+    cartoes_sim = []
+    for c in cartoes:
+        acumulado = db.pq_cartao_no_ano(c['id'], ano)
+        limite = calc.LIMITE_ANUAL_CARTAO.get(c['tipo'], 0)
+        cartoes_sim.append({
+            'id': c['id'],
+            'nome': c['nome'],
+            'tipo': c['tipo'],
+            'pq_acumulado': round(acumulado, 2),
+            'limite_anual': limite,
+            'pq_restante': round(max(0.0, limite - acumulado), 2),
+        })
+
+    return render_template(
+        'simulacao.html',
+        pq_atual=pq_atual,
+        ano=ano,
+        cartoes_sim=cartoes_sim,
+        clube_ativo=db.obter_clube_ativo(),
+        categorias=calc.CATEGORIAS,
+        planos=calc.NOME_PLANO_CLUBE,
+        pqs_clube=calc.PQ_CLUBE_MENSAL,
+        classes_dom={
+            'light': 'Light',
+            'plus': 'Plus',
+            'top_full': 'Top / Full Economy',
+            'premium_economy': 'Premium Economy',
+            'premium_business': 'Premium Business',
+        },
+        classes_int={
+            'economy_light_plus': 'Economy Light/Plus',
+            'economy_full': 'Economy Full',
+            'premium_economy': 'Premium Economy',
+            'premium_business': 'Premium Business',
+        },
+        tarifas_bonus_dom=list(calc.TARIFAS_BONUS_DOMESTICO),
+        tarifas_bonus_int=list(calc.TARIFAS_BONUS_INTERNACIONAL),
+        milhas_cartao=calc.MILHAS_CARTAO,
+    )
 
 
 # ── Console SQL ───────────────────────────────────────────────────────────────

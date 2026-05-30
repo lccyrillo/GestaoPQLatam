@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+{% block title %}Simulação de PQs — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <h4 class="mb-0"><i class="bi bi-calculator me-2 text-danger"></i>Simulação de PQs</h4>
+  <span class="badge bg-secondary">{{ ano }}</span>
+  <span class="text-muted small ms-1">Os itens simulados não são salvos no banco.</span>
+</div>
+
+<!-- Cards de resumo -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card border-0 h-100">
+      <div class="card-body text-center">
+        <div class="text-muted small mb-1">PQ Atual (projetado)</div>
+        <div class="fs-3 fw-bold text-primary pq-num" id="card-atual">{{ pq_atual | int | fmt_pq }}</div>
+        <div class="small text-muted">Todas as atividades de {{ ano }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 h-100">
+      <div class="card-body text-center">
+        <div class="text-muted small mb-1">PQ Simulado</div>
+        <div class="fs-3 fw-bold text-success pq-num" id="card-simulado">0</div>
+        <div class="small text-muted">Soma dos itens da simulação</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 h-100">
+      <div class="card-body text-center">
+        <div class="text-muted small mb-1">PQ Total Projetado</div>
+        <div class="fs-3 fw-bold text-warning pq-num" id="card-total">{{ pq_atual | int | fmt_pq }}</div>
+        <div class="small text-muted">Atual + simulado</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Progresso para categorias -->
+<div class="card border-0 mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-trophy me-1 text-warning"></i>Progresso para Categorias Elite
+    <span class="small text-muted fw-normal ms-2">
+      <span class="badge bg-primary" style="font-size:.65rem">■</span> Atual
+      <span class="badge bg-success ms-1" style="font-size:.65rem">■</span> Simulado
+    </span>
+  </div>
+  <div class="card-body" id="painel-categorias">
+    {% for nome, meta in categorias %}
+    {% set pct_atual = [[(pq_atual / meta * 100) | round(1), 100] | min, 0] | max %}
+    <div class="mb-3" id="cat-bloco-{{ loop.index }}">
+      <div class="d-flex justify-content-between mb-1">
+        <span class="fw-semibold" id="cat-nome-{{ loop.index }}">
+          {{ nome }} ({{ meta | fmt_pq }} PQs)
+        </span>
+        <span class="small text-muted" id="cat-status-{{ loop.index }}">
+          {% if pq_atual >= meta %}
+            <span class="text-success fw-semibold">Já atingida!</span>
+          {% else %}
+            Faltam {{ (meta - pq_atual) | int | fmt_pq }} PQs
+          {% endif %}
+        </span>
+      </div>
+      <div class="progress" style="height:20px">
+        <div class="progress-bar bg-primary" id="cat-bar-atual-{{ loop.index }}"
+             style="width:{{ pct_atual }}%" title="Atual: {{ pq_atual | int | fmt_pq }} PQs"></div>
+        <div class="progress-bar bg-success" id="cat-bar-sim-{{ loop.index }}"
+             style="width:0%" title="Simulado: 0 PQs"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Painel principal: formulário + tabela -->
+<div class="row g-3">
+
+  <!-- Formulário de adição -->
+  <div class="col-lg-5">
+    <div class="card border-0 h-100">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-plus-circle me-1 text-success"></i>Adicionar item à simulação
+      </div>
+      <div class="card-body">
+
+        <!-- Tipo -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Tipo de atividade</label>
+          <select id="sim-tipo" class="form-select form-select-sm" onchange="simMostrarCampos()">
+            <option value="">Selecione...</option>
+            <option value="voo">Voo</option>
+            <option value="aluguel_carro">Aluguel de Carro</option>
+            <option value="seguro">Seguro Viagem</option>
+            <option value="hospedagem">Hospedagem</option>
+            <option value="clube">Clube LATAM</option>
+            {% if cartoes_sim %}
+            <option value="cartao_itau">Cartão Itaú</option>
+            {% endif %}
+            <option value="bonificacao">Bonificação Extra</option>
+          </select>
+        </div>
+
+        <!-- ── VOO ── -->
+        <div id="sim-bloco-voo" class="sim-bloco d-none">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Tipo</label>
+            <select id="sim-tipo-voo" class="form-select form-select-sm" onchange="simAtualizarVoo()">
+              <option value="domestico">Doméstico (R$)</option>
+              <option value="internacional">Internacional (US$)</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Valor total da tarifa (R$)</label>
+            <input type="number" id="sim-voo-valor" class="form-control form-control-sm"
+                   placeholder="0,00" step="0.01" min="0" oninput="simPreviewVoo()">
+          </div>
+          <div class="mb-2 d-none" id="sim-voo-cotacao-bloco">
+            <label class="form-label small fw-semibold">Cotação (R$/US$)</label>
+            <input type="number" id="sim-voo-cotacao" class="form-control form-control-sm"
+                   placeholder="Ex: 5,80" step="0.01" min="0.01" oninput="simPreviewVoo()">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Classe tarifária</label>
+            <select id="sim-voo-classe-dom" class="form-select form-select-sm" onchange="simPreviewVoo()">
+              {% for k,v in classes_dom.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+            </select>
+            <select id="sim-voo-classe-int" class="form-select form-select-sm d-none" onchange="simPreviewVoo()">
+              {% for k,v in classes_int.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-2 form-check">
+            <input class="form-check-input" type="checkbox" id="sim-voo-bonus" onchange="simPreviewVoo()">
+            <label class="form-check-label small" for="sim-voo-bonus">
+              <i class="bi bi-lightning-charge-fill text-warning"></i> Bônus LATAM Pass +50%
+            </label>
+          </div>
+          <div class="small text-primary mb-2" id="sim-voo-preview"></div>
+        </div>
+
+        <!-- ── ALUGUEL / SEGURO / HOSPEDAGEM ── -->
+        {% for tipo_s, label_s, id_s in [('aluguel_carro','Valor total (R$)','carro'), ('seguro','Valor (R$)','seguro'), ('hospedagem','Valor total (R$)','hosp')] %}
+        <div id="sim-bloco-{{ tipo_s }}" class="sim-bloco d-none">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">{{ label_s }}</label>
+            <input type="number" id="sim-{{ id_s }}-valor" class="form-control form-control-sm"
+                   placeholder="0,00" step="0.01" min="0" oninput="simPreviewUsd('{{ id_s }}')">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Cotação (R$/US$)</label>
+            <input type="number" id="sim-{{ id_s }}-cotacao" class="form-control form-control-sm"
+                   placeholder="Ex: 5,80" step="0.01" min="0.01" oninput="simPreviewUsd('{{ id_s }}')">
+          </div>
+          <div class="small text-primary mb-2" id="sim-{{ id_s }}-preview"></div>
+        </div>
+        {% endfor %}
+
+        <!-- ── CLUBE ── -->
+        <div id="sim-bloco-clube" class="sim-bloco d-none">
+          {% if clube_ativo %}
+          <div class="alert alert-success small py-2">
+            Plano ativo: <strong>{{ planos.get(clube_ativo.plano, clube_ativo.plano) }}</strong>
+            — {{ pqs_clube.get(clube_ativo.plano, 0) | fmt_pq }} PQs/mês
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Quantos meses simular?</label>
+            <input type="number" id="sim-clube-meses" class="form-control form-control-sm"
+                   value="1" min="1" max="12" oninput="simPreviewClube()">
+          </div>
+          <div class="small text-primary mb-2" id="sim-clube-preview"></div>
+          {% else %}
+          <div class="alert alert-warning small py-2">Nenhuma assinatura ativa do Clube LATAM.</div>
+          {% endif %}
+        </div>
+
+        <!-- ── CARTÃO ── -->
+        <div id="sim-bloco-cartao_itau" class="sim-bloco d-none">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Cartão</label>
+            <select id="sim-cartao-id" class="form-select form-select-sm" onchange="simPreviewCartao()">
+              {% for c in cartoes_sim %}
+              <option value="{{ c.id }}" data-tipo="{{ c.tipo }}"
+                      data-restante="{{ c.pq_restante }}" data-limite="{{ c.limite_anual }}">
+                {{ c.nome }} (restam {{ c.pq_restante | int | fmt_pq }} PQs no limite anual)
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Gasto (R$)</label>
+            <input type="number" id="sim-cartao-valor" class="form-control form-control-sm"
+                   placeholder="0,00" step="0.01" min="0" oninput="simPreviewCartao()">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Cotação (R$/US$)</label>
+            <input type="number" id="sim-cartao-cotacao" class="form-control form-control-sm"
+                   placeholder="Ex: 5,80" step="0.01" min="0.01" oninput="simPreviewCartao()">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Local da compra</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="sim-local" id="sim-local-br" value="brasil" checked onchange="simPreviewCartao()">
+                <label class="form-check-label small" for="sim-local-br">Brasil</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="sim-local" id="sim-local-ex" value="exterior" onchange="simPreviewCartao()">
+                <label class="form-check-label small" for="sim-local-ex">Exterior</label>
+              </div>
+            </div>
+          </div>
+          <div class="small text-primary mb-2" id="sim-cartao-preview"></div>
+        </div>
+
+        <!-- ── BONIFICAÇÃO ── -->
+        <div id="sim-bloco-bonificacao" class="sim-bloco d-none">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Descrição</label>
+            <input type="text" id="sim-bonus-desc" class="form-control form-control-sm"
+                   placeholder="Ex: Bônus de boas-vindas">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Quantidade de PQs</label>
+            <input type="number" id="sim-bonus-pq" class="form-control form-control-sm"
+                   placeholder="0" min="0" step="1">
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-success btn-sm w-100 mt-2" id="sim-btn-add"
+                onclick="simAdicionar()" disabled>
+          <i class="bi bi-plus-lg me-1"></i>Adicionar à simulação
+        </button>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela de simulação -->
+  <div class="col-lg-7">
+    <div class="card border-0 h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-table me-1"></i>Itens simulados</span>
+        <button class="btn btn-outline-secondary btn-sm" onclick="simLimpar()">
+          <i class="bi bi-trash me-1"></i>Limpar tudo
+        </button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Tipo</th>
+              <th>Descrição</th>
+              <th class="text-end">PQs</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sim-tbody">
+            <tr id="sim-vazio">
+              <td colspan="5" class="text-center text-muted py-4 small">
+                <i class="bi bi-inbox me-1"></i>Nenhum item adicionado ainda.
+              </td>
+            </tr>
+          </tbody>
+          <tfoot class="table-light fw-bold" id="sim-tfoot" style="display:none">
+            <tr>
+              <td colspan="3" class="text-end">Total simulado</td>
+              <td class="text-end text-success pq-num" id="sim-total-footer">0</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Constantes (espelho de calculadora.py) ────────────────────────────────────
+const PQ_ATUAL      = {{ pq_atual }};
+const PQ_VOO_DOM    = 3;
+const PQ_VOO_INT    = 6;
+const PQ_ALUGUEL    = 6;
+const PQ_SEGURO     = 6;
+const PQ_HOSP       = 6;
+const PQ_HOSP_MAX   = 30000;
+const MILHAS_DOM    = {light:5,plus:6,top_full:7,premium_economy:8,premium_business:10};
+const MILHAS_INT    = {economy_light_plus:5,economy_full:7,premium_economy:9,premium_business:12};
+const BONUS_DOM     = new Set({{ tarifas_bonus_dom | tojson }});
+const BONUS_INT     = new Set({{ tarifas_bonus_int | tojson }});
+const PQ_CLUBE      = {{ pqs_clube | tojson }};
+const CLUBE_PLANO   = {{ (clube_ativo.plano if clube_ativo else '') | tojson }};
+const MILHAS_CARTAO = {{ milhas_cartao | tojson }};
+const CARTOES_SIM   = {{ cartoes_sim | tojson }};
+const CATEGORIAS    = {{ categorias | tojson }};
+
+// Limite anual restante por cartão (vai sendo consumido conforme itens são adicionados)
+let cartaoRestante = {};
+CARTOES_SIM.forEach(c => { cartaoRestante[c.id] = c.pq_restante; });
+
+// ── Estado da simulação ───────────────────────────────────────────────────────
+let simItems   = [];
+let simCounter = 0;
+
+function fmtPq(v) {
+  return Math.round(v).toLocaleString('pt-BR');
+}
+
+// ── Controle de exibição dos campos ──────────────────────────────────────────
+function simMostrarCampos() {
+  document.querySelectorAll('.sim-bloco').forEach(b => b.classList.add('d-none'));
+  const tipo = document.getElementById('sim-tipo').value;
+  if (tipo) document.getElementById(`sim-bloco-${tipo}`)?.classList.remove('d-none');
+  document.getElementById('sim-btn-add').disabled = !tipo;
+  simLimparPreviews();
+}
+
+function simAtualizarVoo() {
+  const dom = document.getElementById('sim-tipo-voo').value === 'domestico';
+  document.getElementById('sim-voo-cotacao-bloco').classList.toggle('d-none', dom);
+  document.getElementById('sim-voo-classe-dom').classList.toggle('d-none', !dom);
+  document.getElementById('sim-voo-classe-int').classList.toggle('d-none', dom);
+  simPreviewVoo();
+}
+
+function simLimparPreviews() {
+  ['sim-voo-preview','sim-carro-preview','sim-seguro-preview',
+   'sim-hosp-preview','sim-clube-preview','sim-cartao-preview'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+}
+
+// ── Previews de PQ ───────────────────────────────────────────────────────────
+function simPreviewVoo() {
+  const tipoVoo  = document.getElementById('sim-tipo-voo').value;
+  const valor    = parseFloat(document.getElementById('sim-voo-valor').value) || 0;
+  const cotacao  = parseFloat(document.getElementById('sim-voo-cotacao').value) || 0;
+  const classDom = document.getElementById('sim-voo-classe-dom').value;
+  const classInt = document.getElementById('sim-voo-classe-int').value;
+  const classe   = tipoVoo === 'domestico' ? classDom : classInt;
+  const bonus    = document.getElementById('sim-voo-bonus').checked;
+
+  let tarifaCalc = valor;
+  if (tipoVoo === 'internacional') {
+    if (cotacao <= 0) { document.getElementById('sim-voo-preview').textContent = ''; return; }
+    tarifaCalc = valor / cotacao;
+  }
+  const pqBase   = tarifaCalc * (tipoVoo === 'domestico' ? PQ_VOO_DOM : PQ_VOO_INT);
+  const elegivel = tipoVoo === 'domestico' ? BONUS_DOM.has(classe) : BONUS_INT.has(classe);
+  const pqFinal  = (bonus && elegivel) ? pqBase * 1.5 : pqBase;
+  const bonusInfo = bonus && elegivel ? ' (+50% bônus)' : (bonus && !elegivel ? ' (classe não elegível)' : '');
+  document.getElementById('sim-voo-preview').innerHTML =
+    `→ <strong>${fmtPq(pqFinal)} PQs</strong>${bonusInfo}`;
+}
+
+function simPreviewUsd(id) {
+  const pqPor = id === 'carro' ? PQ_ALUGUEL : id === 'seguro' ? PQ_SEGURO : PQ_HOSP;
+  const valor  = parseFloat(document.getElementById(`sim-${id}-valor`)?.value) || 0;
+  const cot    = parseFloat(document.getElementById(`sim-${id}-cotacao`)?.value) || 0;
+  const el     = document.getElementById(`sim-${id}-preview`);
+  if (!el) return;
+  if (cot <= 0) { el.textContent = ''; return; }
+  const usd = valor / cot;
+  let pq = usd * pqPor;
+  if (id === 'hosp') pq = Math.min(pq, PQ_HOSP_MAX);
+  el.innerHTML = `US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} → <strong>${fmtPq(pq)} PQs</strong>`;
+}
+
+function simPreviewClube() {
+  const meses = parseInt(document.getElementById('sim-clube-meses')?.value) || 0;
+  const pqMes = PQ_CLUBE[CLUBE_PLANO] || 0;
+  const pq    = pqMes * meses;
+  const el    = document.getElementById('sim-clube-preview');
+  if (el) el.innerHTML = `${meses} × ${fmtPq(pqMes)} = <strong>${fmtPq(pq)} PQs</strong>`;
+}
+
+function simPreviewCartao() {
+  const sel     = document.getElementById('sim-cartao-id');
+  if (!sel) return;
+  const opt     = sel.options[sel.selectedIndex];
+  const tipo    = opt?.dataset.tipo || '';
+  const valor   = parseFloat(document.getElementById('sim-cartao-valor').value) || 0;
+  const cotacao = parseFloat(document.getElementById('sim-cartao-cotacao').value) || 0;
+  const local   = document.querySelector('input[name="sim-local"]:checked')?.value || 'brasil';
+  const el      = document.getElementById('sim-cartao-preview');
+  if (!el) return;
+  if (!tipo || cotacao <= 0) { el.textContent = ''; return; }
+  const taxa    = (MILHAS_CARTAO[tipo] || {})[local] || 0;
+  const usd     = valor / cotacao;
+  const milhas  = usd * taxa;
+  const pqBruto = (milhas / 10) * 2;
+  const cartaoId = parseInt(sel.value);
+  const restante = cartaoRestante[cartaoId] ?? 0;
+  const pqEfetivo = Math.min(pqBruto, restante);
+  const aviso = pqEfetivo < pqBruto ? ` <span class="text-warning">(limitado — restam ${fmtPq(restante)} PQs)</span>` : '';
+  el.innerHTML = `US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${taxa} mi → <strong>${fmtPq(pqEfetivo)} PQs</strong>${aviso}`;
+}
+
+// ── Adicionar item ────────────────────────────────────────────────────────────
+function simAdicionar() {
+  const tipo = document.getElementById('sim-tipo').value;
+  if (!tipo) return;
+
+  let pq = 0, descricao = '';
+
+  if (tipo === 'voo') {
+    const tipoVoo  = document.getElementById('sim-tipo-voo').value;
+    const valor    = parseFloat(document.getElementById('sim-voo-valor').value) || 0;
+    const cotacao  = parseFloat(document.getElementById('sim-voo-cotacao').value) || 0;
+    const classDom = document.getElementById('sim-voo-classe-dom').value;
+    const classInt = document.getElementById('sim-voo-classe-int').value;
+    const classe   = tipoVoo === 'domestico' ? classDom : classInt;
+    const bonus    = document.getElementById('sim-voo-bonus').checked;
+    let tarifaCalc = valor;
+    if (tipoVoo === 'internacional') {
+      if (cotacao <= 0) return;
+      tarifaCalc = valor / cotacao;
+    }
+    const pqBase   = tarifaCalc * (tipoVoo === 'domestico' ? PQ_VOO_DOM : PQ_VOO_INT);
+    const elegivel = tipoVoo === 'domestico' ? BONUS_DOM.has(classe) : BONUS_INT.has(classe);
+    pq = (bonus && elegivel) ? pqBase * 1.5 : pqBase;
+    descricao = `Voo ${tipoVoo === 'domestico' ? 'Dom.' : 'Int.'} R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+
+  } else if (['aluguel_carro','seguro','hospedagem'].includes(tipo)) {
+    const id     = tipo === 'aluguel_carro' ? 'carro' : tipo === 'seguro' ? 'seguro' : 'hosp';
+    const valor  = parseFloat(document.getElementById(`sim-${id}-valor`)?.value) || 0;
+    const cot    = parseFloat(document.getElementById(`sim-${id}-cotacao`)?.value) || 0;
+    if (cot <= 0) return;
+    const usd    = valor / cot;
+    const pqPor  = tipo === 'aluguel_carro' ? PQ_ALUGUEL : tipo === 'seguro' ? PQ_SEGURO : PQ_HOSP;
+    pq = Math.min(usd * pqPor, tipo === 'hospedagem' ? PQ_HOSP_MAX : Infinity);
+    const labels = {aluguel_carro:'Aluguel Carro', seguro:'Seguro Viagem', hospedagem:'Hospedagem'};
+    descricao = `${labels[tipo]} R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+
+  } else if (tipo === 'clube') {
+    const meses = parseInt(document.getElementById('sim-clube-meses')?.value) || 0;
+    const pqMes = PQ_CLUBE[CLUBE_PLANO] || 0;
+    if (!meses || !pqMes) return;
+    pq = pqMes * meses;
+    descricao = `Clube LATAM — ${meses} mês(es)`;
+
+  } else if (tipo === 'cartao_itau') {
+    const sel     = document.getElementById('sim-cartao-id');
+    const opt     = sel?.options[sel.selectedIndex];
+    const cartaoId = parseInt(sel?.value);
+    const tipoCt  = opt?.dataset.tipo || '';
+    const valor   = parseFloat(document.getElementById('sim-cartao-valor').value) || 0;
+    const cotacao = parseFloat(document.getElementById('sim-cartao-cotacao').value) || 0;
+    const local   = document.querySelector('input[name="sim-local"]:checked')?.value || 'brasil';
+    if (!tipoCt || cotacao <= 0) return;
+    const taxa    = (MILHAS_CARTAO[tipoCt] || {})[local] || 0;
+    const usd     = valor / cotacao;
+    const milhas  = usd * taxa;
+    const pqBruto = (milhas / 10) * 2;
+    const restante = cartaoRestante[cartaoId] ?? 0;
+    pq = Math.min(pqBruto, restante);
+    cartaoRestante[cartaoId] = Math.max(0, restante - pq);
+    const nomeCartao = CARTOES_SIM.find(c => c.id === cartaoId)?.nome || 'Cartão';
+    descricao = `${nomeCartao} R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})} (${local === 'brasil' ? 'BR' : 'EXT'})`;
+
+  } else if (tipo === 'bonificacao') {
+    pq = parseFloat(document.getElementById('sim-bonus-pq')?.value) || 0;
+    descricao = document.getElementById('sim-bonus-desc')?.value.trim() || 'Bonificação extra';
+    if (!pq) return;
+  }
+
+  if (pq <= 0 && tipo !== 'bonificacao') return;
+
+  const labels = {
+    voo:'Voo', aluguel_carro:'Aluguel Carro', seguro:'Seguro',
+    hospedagem:'Hospedagem', clube:'Clube LATAM',
+    cartao_itau:'Cartão Itaú', bonificacao:'Bonificação'
+  };
+
+  simItems.push({ id: simCounter++, tipo, label: labels[tipo] || tipo, descricao, pq: Math.round(pq) });
+  simRenderTabela();
+  simAtualizarPainel();
+  simResetForm();
+}
+
+function simResetForm() {
+  document.getElementById('sim-tipo').value = '';
+  document.querySelectorAll('.sim-bloco').forEach(b => b.classList.add('d-none'));
+  document.getElementById('sim-btn-add').disabled = true;
+  simLimparPreviews();
+}
+
+// ── Remover item ──────────────────────────────────────────────────────────────
+function simRemover(id) {
+  const item = simItems.find(i => i.id === id);
+  // Devolve o limite ao cartão se for cartão
+  if (item?.tipo === 'cartao_itau') {
+    const cartao = CARTOES_SIM.find(c =>
+      item.descricao.startsWith(c.nome));
+    if (cartao) cartaoRestante[cartao.id] = Math.min(
+      cartao.pq_restante,
+      (cartaoRestante[cartao.id] ?? 0) + item.pq
+    );
+  }
+  simItems = simItems.filter(i => i.id !== id);
+  simRenderTabela();
+  simAtualizarPainel();
+}
+
+function simLimpar() {
+  simItems = [];
+  CARTOES_SIM.forEach(c => { cartaoRestante[c.id] = c.pq_restante; });
+  simRenderTabela();
+  simAtualizarPainel();
+}
+
+// ── Renderizar tabela ─────────────────────────────────────────────────────────
+function simRenderTabela() {
+  const tbody  = document.getElementById('sim-tbody');
+  const tfoot  = document.getElementById('sim-tfoot');
+  const vazio  = document.getElementById('sim-vazio');
+
+  if (simItems.length === 0) {
+    tbody.innerHTML = '';
+    tbody.appendChild(vazio);
+    vazio.style.display = '';
+    tfoot.style.display = 'none';
+    return;
+  }
+
+  vazio.style.display = 'none';
+  tbody.innerHTML = '';
+  let total = 0;
+  simItems.forEach((item, idx) => {
+    total += item.pq;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="text-muted small">${idx + 1}</td>
+      <td><span class="badge bg-secondary">${item.label}</span></td>
+      <td class="small">${item.descricao}</td>
+      <td class="text-end pq-num fw-semibold text-success">${fmtPq(item.pq)}</td>
+      <td class="text-center">
+        <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="simRemover(${item.id})">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('sim-total-footer').textContent = fmtPq(total);
+  tfoot.style.display = '';
+}
+
+// ── Atualizar painel de categorias ───────────────────────────────────────────
+function simAtualizarPainel() {
+  const pqSim   = simItems.reduce((s, i) => s + i.pq, 0);
+  const pqTotal = PQ_ATUAL + pqSim;
+
+  document.getElementById('card-simulado').textContent = fmtPq(pqSim);
+  document.getElementById('card-total').textContent    = fmtPq(pqTotal);
+
+  CATEGORIAS.forEach(([nome, meta], i) => {
+    const idx = i + 1;
+    const pctAtual = Math.min(100, (PQ_ATUAL / meta) * 100);
+    const pctSim   = Math.min(100 - pctAtual, (pqSim / meta) * 100);
+    const atingida = pqTotal >= meta;
+    const jaAtingida = PQ_ATUAL >= meta;
+
+    document.getElementById(`cat-bar-atual-${idx}`).style.width = pctAtual + '%';
+    document.getElementById(`cat-bar-sim-${idx}`).style.width   = pctSim + '%';
+
+    const statusEl = document.getElementById(`cat-status-${idx}`);
+    const nomeEl   = document.getElementById(`cat-nome-${idx}`);
+    if (jaAtingida) {
+      statusEl.innerHTML = '<span class="text-success fw-semibold">Já atingida!</span>';
+      nomeEl.className = 'fw-semibold text-success';
+    } else if (atingida) {
+      statusEl.innerHTML = '<span class="text-success fw-semibold">✓ Atingida com simulação!</span>';
+      nomeEl.className = 'fw-semibold text-success';
+    } else {
+      const faltam = meta - pqTotal;
+      statusEl.innerHTML = `Faltam ${fmtPq(faltam)} PQs`;
+      nomeEl.className = 'fw-semibold';
+    }
+  });
+}
+
+// Inicialização
+simAtualizarPainel();
+</script>
+{% endblock %}
