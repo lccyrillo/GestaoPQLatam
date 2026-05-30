@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Clube LATAM — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-star me-2 text-danger"></i>Clube LATAM Pass</h4>
+  <a href="{{ url_for('clube_novo') }}" class="btn btn-danger btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Registrar Assinatura
+  </a>
+</div>
+
+{% if historico %}
+<div class="card border-0 mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Plano</th>
+          <th>PQs/mês</th>
+          <th>Início</th>
+          <th>Fim</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in historico %}
+        <tr>
+          <td class="fw-semibold">{{ planos.get(r.plano, r.plano) }}</td>
+          <td class="pq-num text-primary fw-semibold">
+            {% set pq = pqs_por_plano.get(r.plano, 0) %}
+            {% if pq > 0 %}{{ pq }} PQs{% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td>{{ r.data_inicio | fmt_data }}</td>
+          <td>{{ r.data_fim | fmt_data if r.data_fim else '—' }}</td>
+          <td>
+            <span class="badge {% if r.ativo %}bg-success{% else %}bg-secondary{% endif %}">
+              {% if r.ativo %}Ativo{% else %}Encerrado{% endif %}
+            </span>
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('clube_editar', rid=r.id) }}" class="btn btn-sm btn-outline-secondary me-1">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{{ url_for('clube_excluir', rid=r.id) }}"
+                  class="d-inline" onsubmit="return confirm('Remover este registro?')">
+              <button class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card border-0 mb-4">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-star fs-1 d-block mb-2"></i>
+    Nenhuma assinatura registrada.
+    <a href="{{ url_for('clube_novo') }}" class="d-block mt-2">Registrar agora</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tabela de PQs por plano -->
+<div class="card border-0">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-table me-1"></i>PQs por Plano (referência)
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Plano</th>
+          <th class="text-end">PQs/mês</th>
+          <th class="text-end">PQs em 12 meses</th>
+          <th>Observação</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Base</td><td class="text-end">—</td><td class="text-end">—</td><td class="text-muted small">Sem PQs</td></tr>
+        <tr><td>Mais</td><td class="text-end">—</td><td class="text-end">—</td><td class="text-muted small">Sem PQs</td></tr>
+        <tr class="table-warning">
+          <td>Embarque <span class="badge bg-secondary">sem Itaú</span></td>
+          <td class="text-end fw-semibold">500</td>
+          <td class="text-end fw-semibold">6.000</td>
+          <td class="text-muted small">Gera PQs mensais</td>
+        </tr>
+        <tr class="table-success">
+          <td>Embarque <span class="badge bg-danger">com Itaú</span></td>
+          <td class="text-end fw-semibold">750</td>
+          <td class="text-end fw-semibold">9.000</td>
+          <td class="text-muted small">Gera PQs mensais + Gold automático</td>
+        </tr>
+        <tr><td>Acelere</td><td class="text-end">—</td><td class="text-end">—</td><td class="text-muted small">Gold automático, sem PQs diretos</td></tr>
+        <tr><td>Turbo</td><td class="text-end">—</td><td class="text-end">—</td><td class="text-muted small">Gold automático, sem PQs diretos</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

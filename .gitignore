@@ -1,0 +1,23 @@
+# Banco de dados (nunca versionar dados de produção)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Build PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini

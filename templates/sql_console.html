@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Console SQL — GestaoPQLatam{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <h4 class="mb-0"><i class="bi bi-terminal me-2 text-secondary"></i>Console SQL</h4>
+  <span class="badge bg-warning text-dark">Somente SELECT</span>
+</div>
+
+<div class="card border-0 mb-3">
+  <div class="card-body">
+    <form method="post">
+      <div class="mb-2">
+        <textarea name="query" class="form-control font-monospace" rows="5"
+                  style="font-size:.85rem">{{ query or 'SELECT * FROM atividades LIMIT 10' }}</textarea>
+      </div>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <button type="submit" class="btn btn-sm btn-secondary">
+          <i class="bi bi-play-fill me-1"></i>Executar
+        </button>
+        <select id="combo_tabela" class="form-select form-select-sm w-auto" onchange="selecionarTabela(this)">
+          <option value="">— Selecionar tabela —</option>
+          {% for t in tabelas %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+        <span class="text-muted small ms-auto">Banco: <code>{{ app_db_path }}</code></span>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if erro %}
+<div class="alert alert-danger small"><i class="bi bi-exclamation-triangle me-1"></i>{{ erro }}</div>
+{% endif %}
+
+{% if colunas %}
+<div class="card border-0">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold small"><i class="bi bi-table me-1"></i>Resultado</span>
+    <span class="text-muted small">{{ linhas|length }} linha(s)</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0" style="font-size:.82rem">
+      <thead class="table-light">
+        <tr>
+          {% for col in colunas %}
+          <th>{{ col }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in linhas %}
+        <tr>
+          {% for cel in linha %}
+          <td class="font-monospace">{{ cel if cel is not none else '' }}</td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ colunas|length }}" class="text-center text-muted py-3">Nenhum resultado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selecionarTabela(sel) {
+  if (!sel.value) return;
+  document.querySelector('textarea[name="query"]').value = 'SELECT * FROM ' + sel.value + ' LIMIT 100';
+  sel.value = '';
+}
+</script>
+{% endblock %}

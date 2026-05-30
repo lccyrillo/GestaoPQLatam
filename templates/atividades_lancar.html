@@ -1,0 +1,830 @@
+{% extends "base.html" %}
+{% block title %}Lançar Atividade — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card border-0">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-plus-circle me-1 text-danger"></i>Lançar Nova Atividade
+      </div>
+      <div class="card-body">
+        <form method="post" id="form-atividade">
+
+          <!-- Tipo e Data -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Tipo de Atividade <span class="text-danger">*</span></label>
+              <select name="tipo" id="tipo" class="form-select" required>
+                <option value="">Selecione...</option>
+                {% for k, v in tipos.items() %}
+                <option value="{{ k }}">{{ v }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Data da Atividade <span class="text-danger">*</span></label>
+              <input type="date" name="data_atividade" id="data_atividade" class="form-control"
+                     value="{{ hoje }}" required>
+            </div>
+          </div>
+
+          <!-- ── VOO ─────────────────────────────────────────────────────── -->
+          <div id="bloco-voo" class="bloco d-none">
+            <hr><h6 class="text-muted mb-3"><i class="bi bi-airplane me-1"></i>Detalhes do Voo</h6>
+
+            <!-- Dados compartilhados entre todas as pernas -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
+                <select name="tipo_voo" id="tipo_voo" class="form-select">
+                  <option value="domestico">Doméstico (R$)</option>
+                  <option value="internacional">Internacional (US$)</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Valor total da tarifa (R$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="valor_tarifa" id="valor_tarifa"
+                         class="form-control" placeholder="0,00" step="0.01" min="0">
+                </div>
+                <div class="form-text">Total sem taxas e impostos.</div>
+              </div>
+              <div class="col-md-4" id="bloco-cotacao-voo" style="display:none">
+                <label class="form-label fw-semibold">Cotação (R$/US$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="cotacao_voo" id="cotacao_voo"
+                         class="form-control" placeholder="Ex: 5,80" step="0.01" min="0.01">
+                </div>
+                <div class="form-text">Total em US$: <strong id="valor_usd_voo">—</strong></div>
+              </div>
+            </div>
+
+            <!-- Pernas do voo -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-semibold text-muted small">
+                <i class="bi bi-signpost-split me-1"></i>Pernas do voo
+              </span>
+              <div class="d-flex align-items-center gap-3">
+                <span class="small">
+                  Total: <strong id="soma-percentual" class="text-danger">0%</strong>
+                  <span class="text-muted">(deve ser 100%)</span>
+                </span>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarPerna()">
+                  <i class="bi bi-plus-lg me-1"></i>Adicionar perna
+                </button>
+              </div>
+            </div>
+
+            <input type="hidden" name="num_pernas" id="num_pernas" value="0">
+            <div id="container-pernas" class="mb-2"></div>
+
+            <div id="alerta-percentual" class="alert alert-warning small py-2 d-none">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              A soma dos percentuais deve ser exatamente <strong>100%</strong>.
+              Atual: <span id="soma-pct-display">0%</span>
+            </div>
+          </div>
+
+          <!-- ── ALUGUEL DE CARRO ─────────────────────────────────────────── -->
+          <div id="bloco-aluguel_carro" class="bloco d-none">
+            <hr><h6 class="text-muted mb-3"><i class="bi bi-car-front me-1"></i>Aluguel de Carro</h6>
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Empresa</label>
+                <input type="text" name="empresa" class="form-control" placeholder="Rentcars, Decolar...">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Valor Total (R$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="valor_brl_carro" id="valor_brl_carro"
+                         class="form-control" placeholder="0,00" step="0.01" min="0">
+                </div>
+                <div class="form-text">6 PQs por US$ 1.</div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Cotação (R$/US$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="cotacao_carro" id="cotacao_carro"
+                         class="form-control" placeholder="Ex: 5,80" step="0.01" min="0.01">
+                </div>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label fw-semibold">Valor em US$</label>
+                <div class="input-group">
+                  <span class="input-group-text text-muted">US$</span>
+                  <input type="text" id="valor_usd_carro" class="form-control bg-light"
+                         readonly placeholder="—">
+                </div>
+                <div class="form-text">Calculado automaticamente.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── CLUBE LATAM ─────────────────────────────────────────────── -->
+          <div id="bloco-clube" class="bloco d-none">
+            <hr><h6 class="text-muted mb-3"><i class="bi bi-star me-1"></i>Clube LATAM Pass</h6>
+            {% if clube_ativo %}
+            <div class="alert alert-success small">
+              <i class="bi bi-check-circle me-1"></i>
+              Assinatura ativa: <strong>{{ planos.get(clube_ativo.plano, clube_ativo.plano) }}</strong>
+              — <strong id="pq-clube-label">{{ pqs_clube.get(clube_ativo.plano, 0) }} PQs/mês</strong>
+            </div>
+            {% else %}
+            <div class="alert alert-warning small">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Nenhuma assinatura ativa. <a href="{{ url_for('clube_novo') }}">Registrar clube</a>.
+            </div>
+            {% endif %}
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Mês de referência</label>
+                <select name="mes_clube" id="mes_clube" class="form-select">
+                  {% for m in range(1,13) %}
+                  <option value="{{ m }}">{{ '%02d'|format(m) }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Ano de referência</label>
+                <input type="number" name="ano_ref_clube" id="ano_ref_clube" class="form-control"
+                       value="{{ ano_atual }}" min="2020" max="2030">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Plano aplicado</label>
+                <select name="plano_clube" id="plano_clube" class="form-select">
+                  {% for k, v in planos.items() %}
+                  <option value="{{ k }}"
+                    {% if clube_ativo and clube_ativo.plano == k %}selected{% endif %}>
+                    {{ v }} ({{ pqs_clube.get(k, 0) }} PQs)
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SEGURO ──────────────────────────────────────────────────── -->
+          <div id="bloco-seguro" class="bloco d-none">
+            <hr><h6 class="text-muted mb-3"><i class="bi bi-shield-check me-1"></i>Seguro Viagem</h6>
+            <div class="row mb-3">
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Valor (R$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="valor_brl_seguro" id="valor_brl_seguro"
+                         class="form-control" placeholder="0,00" step="0.01" min="0">
+                </div>
+                <div class="form-text">6 PQs por US$ 1.</div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Cotação (R$/US$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="cotacao_seguro" id="cotacao_seguro"
+                         class="form-control" placeholder="Ex: 5,80" step="0.01" min="0.01">
+                </div>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label fw-semibold">Valor em US$</label>
+                <div class="input-group">
+                  <span class="input-group-text text-muted">US$</span>
+                  <input type="text" id="valor_usd_seguro" class="form-control bg-light"
+                         readonly placeholder="—">
+                </div>
+                <div class="form-text">Calculado automaticamente.</div>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Início da cobertura</label>
+                <input type="date" name="cobertura_inicio" class="form-control">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Fim da cobertura</label>
+                <input type="date" name="cobertura_fim" class="form-control">
+              </div>
+            </div>
+          </div>
+
+          <!-- ── HOSPEDAGEM ──────────────────────────────────────────────── -->
+          <div id="bloco-hospedagem" class="bloco d-none">
+            <hr><h6 class="text-muted mb-3"><i class="bi bi-building me-1"></i>Hospedagem</h6>
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Nome do Hotel</label>
+                <input type="text" name="hotel" class="form-control" placeholder="Hotel...">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Valor Total (R$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="valor_brl_hosp" id="valor_brl_hosp"
+                         class="form-control" placeholder="0,00" step="0.01" min="0">
+                </div>
+                <div class="form-text">6 PQs por US$ 1. Teto de 30.000 PQs.</div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Cotação (R$/US$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="cotacao_hosp" id="cotacao_hosp"
+                         class="form-control" placeholder="Ex: 5,80" step="0.01" min="0.01">
+                </div>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label fw-semibold">Valor em US$</label>
+                <div class="input-group">
+                  <span class="input-group-text text-muted">US$</span>
+                  <input type="text" id="valor_usd_hosp" class="form-control bg-light"
+                         readonly placeholder="—">
+                </div>
+                <div class="form-text">Calculado automaticamente.</div>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Check-in</label>
+                <input type="date" name="checkin" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Check-out</label>
+                <input type="date" name="checkout" class="form-control">
+              </div>
+            </div>
+          </div>
+
+          <!-- ── CARTÃO ITAÚ ─────────────────────────────────────────────── -->
+          <div id="bloco-cartao_itau" class="bloco d-none">
+            <hr><h6 class="text-muted mb-3"><i class="bi bi-credit-card me-1"></i>Cartão de Crédito Itaú</h6>
+            {% if cartoes %}
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Cartão <span class="text-danger">*</span></label>
+                <select name="cartao_id" id="cartao_id" class="form-select">
+                  {% for c in cartoes %}
+                  <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.nome }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Mês ref.</label>
+                <select name="mes" id="mes_cartao" class="form-select">
+                  {% for m in range(1,13) %}
+                  <option value="{{ m }}">{{ '%02d'|format(m) }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Ano ref.</label>
+                <input type="number" name="ano_ref" id="ano_cartao" class="form-control"
+                       value="{{ ano_atual }}" min="2020" max="2030">
+              </div>
+            </div>
+
+            <!-- Local da compra -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Local das compras</label>
+              <div class="d-flex gap-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="local_compra"
+                         id="local_brasil" value="brasil" checked>
+                  <label class="form-check-label" for="local_brasil">
+                    Brasil <span class="text-muted small" id="taxa-brasil"></span>
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="local_compra"
+                         id="local_exterior" value="exterior">
+                  <label class="form-check-label" for="local_exterior">
+                    Exterior <span class="text-muted small" id="taxa-exterior"></span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-text">
+                A taxa de milhas por US$1 varia conforme o local de compra.
+              </div>
+            </div>
+
+            <!-- Valor em BRL + Cotação -->
+            <div class="row mb-3">
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">Gasto total no mês (R$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="valor_brl" id="valor_brl_cartao"
+                         class="form-control" placeholder="0,00" step="0.01" min="0">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Cotação do dólar (R$/US$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="cotacao_dolar" id="cotacao_dolar"
+                         class="form-control" placeholder="Ex: 5,80" step="0.01" min="0.01">
+                </div>
+                <div class="form-text">Cotação estimada do mês de referência.</div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Valor em US$</label>
+                <div class="input-group">
+                  <span class="input-group-text text-muted">US$</span>
+                  <input type="text" id="valor_usd_calculado" class="form-control bg-light"
+                         readonly placeholder="—">
+                </div>
+                <div class="form-text">Calculado automaticamente.</div>
+              </div>
+            </div>
+
+            <!-- Info limite anual -->
+            <div id="info-limite" class="alert alert-secondary small d-none">
+              <div class="row text-center g-2">
+                <div class="col">
+                  <div class="text-muted">Milhas geradas</div>
+                  <strong id="il-milhas">—</strong>
+                </div>
+                <div class="col">
+                  <div class="text-muted">PQs brutos</div>
+                  <strong id="il-bruto">—</strong>
+                </div>
+                <div class="col">
+                  <div class="text-muted">Já acumulado</div>
+                  <strong id="il-acumulado">—</strong>
+                </div>
+                <div class="col">
+                  <div class="text-muted">Disponível no limite</div>
+                  <strong id="il-restante" class="text-success">—</strong>
+                </div>
+                <div class="col">
+                  <div class="text-muted">Limite anual</div>
+                  <strong id="il-limite">—</strong>
+                </div>
+              </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning small">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Nenhum cartão cadastrado. <a href="{{ url_for('cartao_novo') }}">Cadastrar cartão</a>.
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- ── BONIFICAÇÃO ─────────────────────────────────────────────── -->
+          <div id="bloco-bonificacao" class="bloco d-none">
+            <hr><h6 class="text-muted mb-3"><i class="bi bi-gift me-1"></i>Bonificação Extra</h6>
+            <div class="row mb-3">
+              <div class="col-md-8">
+                <label class="form-label fw-semibold">Descrição <span class="text-danger">*</span></label>
+                <input type="text" name="descricao_manual" class="form-control"
+                       placeholder="Descreva a bonificação...">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Quantidade de PQs <span class="text-danger">*</span></label>
+                <input type="number" name="pq_manual" id="pq_manual" class="form-control pq-input"
+                       placeholder="0" step="1" min="0">
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview PQs estimados -->
+          <div id="preview-pq" class="alert alert-primary d-none mt-3">
+            <div class="d-flex align-items-center">
+              <i class="bi bi-calculator fs-4 me-3 text-primary"></i>
+              <div>
+                <div class="small text-muted">PQs estimados para esta atividade</div>
+                <div class="fs-4 fw-bold pq-num" id="preview-valor">—</div>
+                <div class="small text-muted" id="preview-detalhe"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-danger" id="btn-salvar" disabled>
+              <i class="bi bi-check-lg me-1"></i>Salvar Atividade
+            </button>
+            <a href="{{ url_for('atividades_lista') }}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PQ_VOO_DOM = 3;
+const PQ_VOO_INT = 6;
+const PQ_ALUGUEL = 6;
+const PQ_SEGURO  = 6;
+const PQ_HOSP    = 6;
+const PQ_HOSP_MAX = 30000;
+const MILHAS_DOM = {light:5,plus:6,top_full:7,premium_economy:8,premium_business:10};
+const MILHAS_INT = {economy_light_plus:5,economy_full:7,premium_economy:9,premium_business:12};
+const BONUS_DOM  = new Set({{ tarifas_bonus_dom | tojson }});
+const BONUS_INT  = new Set({{ tarifas_bonus_int | tojson }});
+const PQ_CLUBE   = {{ pqs_clube | tojson }};
+const CLASSES_DOM = {{ classes_dom | tojson }};
+const CLASSES_INT = {{ classes_int | tojson }};
+
+function fmtPq(v) {
+  return Math.round(v).toLocaleString('pt-BR');
+}
+
+function esconderTodos() {
+  document.querySelectorAll('.bloco').forEach(b => b.classList.add('d-none'));
+  document.getElementById('preview-pq').classList.add('d-none');
+  document.getElementById('btn-salvar').disabled = true;
+}
+
+function mostrarBloco(tipo) {
+  const el = document.getElementById('bloco-' + tipo);
+  if (el) el.classList.remove('d-none');
+  document.getElementById('btn-salvar').disabled = (tipo === 'voo');
+}
+
+function mostrarPreview(pq, detalhe) {
+  const box = document.getElementById('preview-pq');
+  box.classList.remove('d-none');
+  document.getElementById('preview-valor').textContent = fmtPq(pq) + ' PQs';
+  document.getElementById('preview-detalhe').textContent = detalhe || '';
+}
+
+// ── Gestão de pernas ──────────────────────────────────────────────────────────
+
+let pernaIdx = 0;
+let pernaIds = [];
+
+function buildClassOpts(tipoVoo) {
+  const classes = tipoVoo === 'domestico' ? CLASSES_DOM : CLASSES_INT;
+  return Object.entries(classes).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+}
+
+function adicionarPerna() {
+  const idx = pernaIdx++;
+  pernaIds.push(idx);
+  const tipoVoo = document.getElementById('tipo_voo').value;
+
+  const card = document.createElement('div');
+  card.className = 'card border mb-2';
+  card.id = `perna-card-${idx}`;
+  card.innerHTML = `
+    <div class="card-body py-2 px-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-semibold small text-muted perna-label">Perna ${pernaIds.length}</span>
+        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="removerPerna(${idx})">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">Data <span class="text-danger">*</span></label>
+          <input type="date" name="perna_data_${idx}" id="perna_data_${idx}"
+                 class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1">Descrição</label>
+          <input type="text" name="perna_descricao_${idx}"
+                 class="form-control form-control-sm" placeholder="Ex: GRU → GIG">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label small fw-semibold mb-1">% <span class="text-danger">*</span></label>
+          <input type="number" name="perna_percentual_${idx}" id="perna_pct_${idx}"
+                 class="form-control form-control-sm perna-pct"
+                 placeholder="0" step="0.01" min="0" max="100">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1">Classe tarifária</label>
+          <select name="perna_classe_${idx}" id="perna_classe_${idx}"
+                  class="form-select form-select-sm perna-classe">
+            ${buildClassOpts(tipoVoo)}
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end pb-1">
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox"
+                   name="perna_bonus_${idx}" id="perna_bonus_${idx}" value="1">
+            <label class="form-check-label small" for="perna_bonus_${idx}">
+              <i class="bi bi-lightning-charge-fill text-warning"></i> Bônus LATAM Pass +50%
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="mt-1 small text-primary" id="perna-pq-${idx}"></div>
+    </div>`;
+
+  document.getElementById('container-pernas').appendChild(card);
+  document.getElementById(`perna_data_${idx}`).value = hoje;
+  document.getElementById('num_pernas').value = pernaIds.length;
+
+  document.getElementById(`perna_pct_${idx}`).addEventListener('input', calcularVoo);
+  document.getElementById(`perna_classe_${idx}`).addEventListener('change', calcularVoo);
+  document.getElementById(`perna_bonus_${idx}`).addEventListener('change', calcularVoo);
+
+  calcularVoo();
+  renumerar();
+}
+
+function removerPerna(idx) {
+  pernaIds = pernaIds.filter(i => i !== idx);
+  document.getElementById(`perna-card-${idx}`)?.remove();
+  document.getElementById('num_pernas').value = pernaIds.length;
+  calcularVoo();
+  renumerar();
+}
+
+function renumerar() {
+  pernaIds.forEach((id, pos) => {
+    const lbl = document.querySelector(`#perna-card-${id} .perna-label`);
+    if (lbl) lbl.textContent = `Perna ${pos + 1}`;
+  });
+}
+
+function atualizarSoma() {
+  const pcts = [...document.querySelectorAll('.perna-pct')].map(el => parseFloat(el.value) || 0);
+  const soma = pcts.reduce((a, b) => a + b, 0);
+  const ok   = Math.abs(soma - 100) < 0.1 && pernaIds.length > 0;
+
+  document.getElementById('soma-percentual').textContent = soma.toFixed(1) + '%';
+  document.getElementById('soma-percentual').className   = ok ? 'text-success' : 'text-danger';
+  document.getElementById('soma-pct-display').textContent = soma.toFixed(1) + '%';
+  document.getElementById('alerta-percentual').classList.toggle('d-none', ok || pernaIds.length === 0);
+
+  if (document.getElementById('tipo').value === 'voo') {
+    document.getElementById('btn-salvar').disabled = !ok;
+  }
+}
+
+// ── Cálculos locais ───────────────────────────────────────────────────────────
+
+function calcularVoo() {
+  const tipoVoo   = document.getElementById('tipo_voo').value;
+  const tarifaBrl = parseFloat(document.getElementById('valor_tarifa').value) || 0;
+  const cotacao   = parseFloat(document.getElementById('cotacao_voo')?.value) || 0;
+
+  // Atualiza total em US$
+  const usdEl = document.getElementById('valor_usd_voo');
+  if (usdEl) {
+    usdEl.textContent = (tipoVoo === 'internacional' && cotacao > 0)
+      ? (tarifaBrl / cotacao).toLocaleString('pt-BR', {minimumFractionDigits: 2})
+      : '—';
+  }
+
+  let totalPq = 0, totalBonus = 0;
+
+  pernaIds.forEach(idx => {
+    const pct    = parseFloat(document.getElementById(`perna_pct_${idx}`)?.value) || 0;
+    const classe = document.getElementById(`perna_classe_${idx}`)?.value || '';
+    const bonus  = document.getElementById(`perna_bonus_${idx}`)?.checked || false;
+    const pqEl   = document.getElementById(`perna-pq-${idx}`);
+
+    const valorPernaBrl = tarifaBrl * (pct / 100);
+    let tarifaCalc = valorPernaBrl;
+    let descVal = '';
+
+    if (tipoVoo === 'internacional') {
+      tarifaCalc = cotacao > 0 ? valorPernaBrl / cotacao : 0;
+      descVal = `R$ ${valorPernaBrl.toLocaleString('pt-BR',{minimumFractionDigits:2})} = US$ ${tarifaCalc.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+    } else {
+      descVal = `R$ ${valorPernaBrl.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+    }
+
+    const pqBase    = tarifaCalc * (tipoVoo === 'domestico' ? PQ_VOO_DOM : PQ_VOO_INT);
+    const elegivel  = tipoVoo === 'domestico' ? BONUS_DOM.has(classe) : BONUS_INT.has(classe);
+    totalPq += pqBase;
+
+    let bonusInfo = '';
+    if (bonus && elegivel) {
+      const pqBonus = pqBase * 0.5;
+      totalBonus += pqBonus;
+      bonusInfo = ` <span class="text-warning fw-semibold">+ ${fmtPq(pqBonus)} PQs bônus (registro separado)</span>`;
+    } else if (bonus && !elegivel) {
+      bonusInfo = ` <span class="text-muted">(classe não elegível ao bônus)</span>`;
+    }
+
+    if (pqEl) pqEl.innerHTML = `${descVal} → <strong>${fmtPq(pqBase)} PQs</strong>${bonusInfo}`;
+  });
+
+  atualizarSoma();
+
+  if (pernaIds.length > 0) {
+    const pqTotal = totalPq + totalBonus;
+    let det = `${pernaIds.length} perna(s)`;
+    if (totalBonus > 0) det += ` · ${fmtPq(totalPq)} PQs + ${fmtPq(totalBonus)} bônus`;
+    mostrarPreview(pqTotal, det);
+  } else {
+    document.getElementById('preview-pq').classList.add('d-none');
+  }
+}
+
+function calcularCarro() {
+  const brl = parseFloat(document.getElementById('valor_brl_carro')?.value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacao_carro')?.value) || 0;
+  const usdEl = document.getElementById('valor_usd_carro');
+  if (cotacao > 0) {
+    const usd = brl / cotacao;
+    usdEl.value = usd.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    const pq = usd * PQ_ALUGUEL;
+    const det = `R$ ${brl.toLocaleString('pt-BR',{minimumFractionDigits:2})} ÷ ${cotacao} = US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${PQ_ALUGUEL} = ${fmtPq(pq)} PQs`;
+    mostrarPreview(pq, det);
+  } else {
+    usdEl.value = '—';
+  }
+}
+
+function calcularSeguro() {
+  const brl = parseFloat(document.getElementById('valor_brl_seguro')?.value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacao_seguro')?.value) || 0;
+  const usdEl = document.getElementById('valor_usd_seguro');
+  if (cotacao > 0) {
+    const usd = brl / cotacao;
+    usdEl.value = usd.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    const pq = usd * PQ_SEGURO;
+    const det = `R$ ${brl.toLocaleString('pt-BR',{minimumFractionDigits:2})} ÷ ${cotacao} = US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${PQ_SEGURO} = ${fmtPq(pq)} PQs`;
+    mostrarPreview(pq, det);
+  } else {
+    usdEl.value = '—';
+  }
+}
+
+function calcularHospedagem() {
+  const brl = parseFloat(document.getElementById('valor_brl_hosp')?.value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacao_hosp')?.value) || 0;
+  const usdEl = document.getElementById('valor_usd_hosp');
+  if (cotacao > 0) {
+    const usd = brl / cotacao;
+    usdEl.value = usd.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+    const pq = Math.min(usd * PQ_HOSP, PQ_HOSP_MAX);
+    const det = `R$ ${brl.toLocaleString('pt-BR',{minimumFractionDigits:2})} ÷ ${cotacao} = US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${PQ_HOSP} = ${fmtPq(pq)} PQs${pq >= PQ_HOSP_MAX ? ' (teto atingido)' : ''}`;
+    mostrarPreview(pq, det);
+  } else {
+    usdEl.value = '—';
+  }
+}
+
+function calcularSimples(pqPorDolar, tipo) {
+  const inputs = document.querySelectorAll(`#bloco-${tipo} input[name="valor_usd"]`);
+  const val = parseFloat(inputs[0]?.value) || 0;
+  let pq = val * pqPorDolar;
+  if (tipo === 'hospedagem') pq = Math.min(pq, PQ_HOSP_MAX);
+  const det = `US$ ${val.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${pqPorDolar} = ${fmtPq(pq)} PQs`;
+  mostrarPreview(pq, det);
+}
+
+function calcularClube() {
+  const plano = document.getElementById('plano_clube')?.value || '';
+  const pq = PQ_CLUBE[plano] || 0;
+  mostrarPreview(pq, `Plano ${plano} → ${fmtPq(pq)} PQs neste mês`);
+}
+
+function calcularBonificacao() {
+  const pq = parseFloat(document.getElementById('pq_manual').value) || 0;
+  mostrarPreview(pq, 'Valor informado manualmente');
+}
+
+// Taxas de milhas por cartão e local (espelho do calculadora.py)
+const MILHAS_CARTAO = {
+  platinum:        {brasil: 1.5, exterior: 2.0},
+  visa_infinite:   {brasil: 2.5, exterior: 3.5},
+  mastercard_black:{brasil: 2.5, exterior: 3.5},
+};
+
+function atualizarTaxasCartao() {
+  const sel = document.getElementById('cartao_id');
+  if (!sel) return;
+  const tipo = sel.options[sel.selectedIndex]?.dataset.tipo || '';
+  const taxas = MILHAS_CARTAO[tipo] || {};
+  const tb = document.getElementById('taxa-brasil');
+  const te = document.getElementById('taxa-exterior');
+  if (tb) tb.textContent = taxas.brasil ? `(${taxas.brasil} mi/US$1)` : '';
+  if (te) te.textContent = taxas.exterior ? `(${taxas.exterior} mi/US$1)` : '';
+}
+
+function atualizarUSD() {
+  const brl = parseFloat(document.getElementById('valor_brl_cartao')?.value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacao_dolar')?.value) || 0;
+  const el = document.getElementById('valor_usd_calculado');
+  if (el) {
+    el.value = cotacao > 0 ? (brl / cotacao).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '—';
+  }
+}
+
+async function calcularCartao() {
+  const cartaoId = document.getElementById('cartao_id')?.value;
+  const valorBrl = parseFloat(document.getElementById('valor_brl_cartao')?.value) || 0;
+  const cotacao  = parseFloat(document.getElementById('cotacao_dolar')?.value) || 0;
+  const local    = document.querySelector('input[name="local_compra"]:checked')?.value || 'brasil';
+  const ano      = document.getElementById('ano_cartao')?.value;
+  if (!cartaoId || !valorBrl || cotacao <= 0) return;
+
+  atualizarUSD();
+
+  const url = `/api/calcular-pq-cartao?cartao_id=${cartaoId}&valor_brl=${valorBrl}&cotacao=${cotacao}&local_compra=${local}&ano=${ano}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.erro) return;
+
+  const info = document.getElementById('info-limite');
+  info.classList.remove('d-none');
+  document.getElementById('il-milhas').textContent   = data.milhas.toLocaleString('pt-BR', {maximumFractionDigits:0}) + ' mi';
+  document.getElementById('il-bruto').textContent    = fmtPq(data.pq_bruto) + ' PQs';
+  document.getElementById('il-acumulado').textContent= fmtPq(data.ja_acumulado) + ' PQs';
+  document.getElementById('il-restante').textContent = fmtPq(data.restante) + ' PQs';
+  document.getElementById('il-limite').textContent   = fmtPq(data.limite_anual) + ' PQs';
+
+  const det = `R$ ${valorBrl.toLocaleString('pt-BR',{minimumFractionDigits:2})} ÷ ${cotacao} = US$ ${data.valor_usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${data.taxa_milhas} mi/US$1 → ${data.milhas.toFixed(0)} milhas → ${fmtPq(data.pq_bruto)} PQs brutos (efetivos: ${fmtPq(data.pq_efetivo)})`;
+  mostrarPreview(data.pq_efetivo, det);
+}
+
+// ── Controle de exibição ──────────────────────────────────────────────────────
+
+document.getElementById('tipo').addEventListener('change', function () {
+  esconderTodos();
+  const tipo = this.value;
+  const dataField = document.getElementById('data_atividade');
+  if (!tipo) return;
+  mostrarBloco(tipo);
+  if (tipo === 'voo') {
+    dataField.disabled = true;
+    dataField.title = 'Para voos, a data é definida por cada perna';
+    calcularVoo();
+  } else {
+    dataField.disabled = false;
+    dataField.title = '';
+    if (tipo === 'clube') calcularClube();
+  }
+});
+
+// Tipo de voo (dom/int)
+document.getElementById('tipo_voo').addEventListener('change', function () {
+  const dom = this.value === 'domestico';
+  document.getElementById('bloco-cotacao-voo').style.display = dom ? 'none' : '';
+  // Atualiza selects de classe em todas as pernas existentes
+  document.querySelectorAll('.perna-classe').forEach(sel => {
+    const classes = dom ? CLASSES_DOM : CLASSES_INT;
+    sel.innerHTML = Object.entries(classes).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  });
+  calcularVoo();
+});
+
+// Recalcula ao mudar valor da tarifa ou cotação
+['valor_tarifa', 'cotacao_voo'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', calcularVoo);
+});
+
+// Recalcula aluguel de carro (BRL + cotação)
+['valor_brl_carro', 'cotacao_carro'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', calcularCarro);
+});
+
+// Recalcula seguro (BRL + cotação)
+['valor_brl_seguro', 'cotacao_seguro'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', calcularSeguro);
+});
+
+// Recalcula hospedagem (BRL + cotação)
+['valor_brl_hosp', 'cotacao_hosp'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', calcularHospedagem);
+});
+
+// Clube
+document.getElementById('plano_clube')?.addEventListener('change', calcularClube);
+
+// Bonificação
+document.getElementById('pq_manual')?.addEventListener('input', calcularBonificacao);
+
+// Cartão — init taxas e listeners
+atualizarTaxasCartao();
+document.getElementById('cartao_id')?.addEventListener('change', () => {
+  atualizarTaxasCartao();
+  calcularCartao();
+});
+
+let timerCartao;
+['valor_brl_cartao','cotacao_dolar','mes_cartao','ano_cartao'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => {
+    atualizarUSD();
+    clearTimeout(timerCartao);
+    timerCartao = setTimeout(calcularCartao, 400);
+  });
+});
+document.querySelectorAll('input[name="local_compra"]').forEach(el => {
+  el.addEventListener('change', calcularCartao);
+});
+
+// Data de hoje como default
+const hoje = new Date().toISOString().split('T')[0];
+document.getElementById('data_atividade').value = hoje;
+
+// Mês atual como default
+const mesAtual = new Date().getMonth() + 1;
+['mes_clube', 'mes_cartao'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.value = mesAtual;
+});
+</script>
+{% endblock %}

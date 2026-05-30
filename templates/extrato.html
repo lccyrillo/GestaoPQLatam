@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}Extrato de Pontos — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-receipt me-2 text-danger"></i>Extrato de Pontos</h4>
+  <form class="d-flex gap-2 align-items-center">
+    <label class="mb-0 fw-semibold small">Ano:</label>
+    <select name="ano" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      {% for a in anos %}
+      <option value="{{ a }}" {% if a==ano %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- Cards resumo -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card border-0 h-100">
+      <div class="card-body text-center">
+        <div class="text-muted small mb-1">Total Estimado</div>
+        <div class="display-6 fw-bold text-primary pq-num">{{ totais.total_estimado | fmt_pq }}</div>
+        <div class="small text-muted">PQs (todas as atividades)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 h-100">
+      <div class="card-body text-center">
+        <div class="text-muted small mb-1">Total Confirmado</div>
+        <div class="display-6 fw-bold text-success pq-num">{{ totais.total_confirmado | fmt_pq }}</div>
+        <div class="small text-muted">PQs (já creditados no programa)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 h-100">
+      <div class="card-body text-center">
+        <div class="text-muted small mb-1">A Confirmar</div>
+        <div class="display-6 fw-bold text-warning pq-num">
+          {{ (totais.total_estimado - totais.total_confirmado) | fmt_pq }}
+        </div>
+        <div class="small text-muted">PQs ainda pendentes de validação</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Progresso por categoria (baseado no estimado) -->
+<div class="card border-0 mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-trophy me-1 text-warning"></i>Projeção de Categoria — {{ ano }}
+    <span class="text-muted fw-normal small">(baseado nos PQs estimados)</span>
+  </div>
+  <div class="card-body">
+    {% for cat in categorias %}
+    <div class="mb-3">
+      <div class="d-flex justify-content-between mb-1">
+        <span class="fw-semibold {% if cat.atingida %}text-success{% endif %}">
+          {% if cat.atingida %}<i class="bi bi-check-circle-fill me-1 text-success"></i>{% endif %}
+          {{ cat.nome }} ({{ cat.meta | fmt_pq }} PQs)
+        </span>
+        <span class="small text-muted">
+          {% if cat.atingida %}
+            <span class="text-success fw-semibold">Atingida!</span>
+          {% else %}
+            Faltam {{ cat.falta | fmt_pq }} PQs
+          {% endif %}
+        </span>
+      </div>
+      <div class="progress">
+        <div class="progress-bar
+          {% if cat.atingida %}bg-success
+          {% elif cat.percentual >= 75 %}bg-info
+          {% elif cat.percentual >= 40 %}bg-warning
+          {% else %}bg-danger{% endif %}"
+          style="width: {{ cat.percentual }}%" role="progressbar">
+          {{ cat.percentual }}%
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Resumo por tipo -->
+{% if por_tipo %}
+<div class="card border-0 mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-pie-chart me-1"></i>Resumo por Tipo de Atividade
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Tipo</th>
+          <th class="text-end">Lançamentos</th>
+          <th class="text-end">PQs Estimados</th>
+          <th class="text-end">PQs Confirmados</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tipo_key, vals in por_tipo.items() | sort(attribute='0') %}
+        <tr>
+          <td><span class="badge bg-secondary">{{ tipos.get(tipo_key, tipo_key) }}</span></td>
+          <td class="text-end">{{ vals.count }}</td>
+          <td class="text-end pq-num fw-semibold text-primary">{{ vals.estimado | fmt_pq }}</td>
+          <td class="text-end pq-num fw-semibold text-success">{{ vals.confirmado | fmt_pq }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="fw-bold table-light">
+        <tr>
+          <td>Total</td>
+          <td class="text-end">{{ totais.total_atividades }}</td>
+          <td class="text-end pq-num text-primary">{{ totais.total_estimado | fmt_pq }}</td>
+          <td class="text-end pq-num text-success">{{ totais.total_confirmado | fmt_pq }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Detalhamento completo -->
+<div class="card border-0">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-list-ul me-1"></i>Detalhamento — {{ ano }}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Data</th>
+          <th>Tipo</th>
+          <th>Descrição</th>
+          <th class="text-end">PQs Est.</th>
+          <th class="text-end">PQs Conf.</th>
+          <th>Status</th>
+          <th class="text-center">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in atividades %}
+        <tr>
+          <td class="small text-nowrap">{{ a.data_atividade | fmt_data }}</td>
+          <td><span class="badge bg-secondary">{{ tipos.get(a.tipo, a.tipo) }}</span></td>
+          <td class="small">{{ a.descricao }}</td>
+          <td class="text-end pq-num text-primary fw-semibold">{{ a.pq_estimado | fmt_pq }}</td>
+          <td class="text-end pq-num {% if a.pq_confirmado %}text-success fw-semibold{% else %}text-muted{% endif %}">
+            {{ a.pq_confirmado | fmt_pq }}
+          </td>
+          <td>
+            {% set cor, lbl = status_label.get(a.status, ('secondary','?')) %}
+            <span class="badge bg-{{ cor }}">{{ lbl }}</span>
+          </td>
+          <td class="text-center">
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger py-0 px-2"
+                    title="Excluir atividade"
+                    onclick="confirmarExclusao({{ a.id }}, '{{ a.descricao | replace("'", "\\'") }}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-4">Nenhuma atividade em {{ ano }}.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal de confirmação de exclusão -->
+<div class="modal fade" id="modalExcluir" tabindex="-1" aria-labelledby="modalExcluirLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-danger" id="modalExcluirLabel">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>Excluir Atividade
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">Tem certeza que deseja excluir a atividade:</p>
+        <p class="fw-semibold text-secondary" id="modalDescricao"></p>
+        <p class="small text-muted mb-0">Esta ação não pode ser desfeita.</p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form id="formExcluir" method="post" action="">
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Excluir
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function confirmarExclusao(id, descricao) {
+  document.getElementById('modalDescricao').textContent = descricao;
+  document.getElementById('formExcluir').action = '/atividades/' + id + '/excluir';
+  new bootstrap.Modal(document.getElementById('modalExcluir')).show();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{% if cartao %}Editar{% else %}Novo{% endif %} Cartão — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card border-0">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-credit-card me-1 text-danger"></i>
+        {% if cartao %}Editar Cartão{% else %}Cadastrar Novo Cartão{% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nome / Identificação <span class="text-danger">*</span></label>
+            <input type="text" name="nome" class="form-control"
+                   placeholder="Ex: Itaú Black principal"
+                   value="{{ cartao.nome if cartao else '' }}" required>
+            <div class="form-text">Nome que aparecerá na seleção ao lançar atividade.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Versão do Cartão <span class="text-danger">*</span></label>
+            <select name="tipo" class="form-select" id="tipo_cartao" required>
+              {% for key, label in tipos_cartao.items() %}
+              <option value="{{ key }}"
+                {% if cartao and cartao.tipo == key %}selected{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div id="info-cartao" class="alert alert-secondary small mb-3"></div>
+
+          <div class="mb-4 form-check">
+            <input type="checkbox" class="form-check-input" name="ativo" id="ativo"
+                   {% if not cartao or cartao.ativo %}checked{% endif %}>
+            <label class="form-check-label" for="ativo">Cartão ativo</label>
+            <div class="form-text">Cartões inativos não aparecem na seleção ao lançar atividades.</div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">
+              <i class="bi bi-check-lg me-1"></i>Salvar
+            </button>
+            <a href="{{ url_for('cartoes') }}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const INFO = {
+  platinum: 'Platinum — 1,5 mi/US$1 (Brasil) · 2,0 mi/US$1 (exterior) · Limite de <strong>5.000 PQs/ano</strong> · Anuidade grátis com R$4.000/mês',
+  visa_infinite: 'Visa Infinite — 2,5 mi/US$1 (Brasil) · 3,5 mi/US$1 (exterior) · Limite de <strong>9.000 PQs/ano</strong> · Anuidade grátis com R$20.000/mês',
+  mastercard_black: 'Mastercard Black — 2,5 mi/US$1 (Brasil) · 3,5 mi/US$1 (exterior) · Limite de <strong>9.000 PQs/ano</strong> · Anuidade grátis com R$20.000/mês',
+};
+function atualizarInfo() {
+  const tipo = document.getElementById('tipo_cartao').value;
+  document.getElementById('info-cartao').innerHTML =
+    '<i class="bi bi-info-circle me-1"></i>' + (INFO[tipo] || '');
+}
+document.getElementById('tipo_cartao').addEventListener('change', atualizarInfo);
+atualizarInfo();
+</script>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{% if reg %}Editar{% else %}Nova{% endif %} Assinatura Clube — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card border-0">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-star me-1 text-danger"></i>
+        {% if reg %}Editar Assinatura{% else %}Registrar Assinatura do Clube LATAM{% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Plano <span class="text-danger">*</span></label>
+            <select name="plano" id="plano" class="form-select" required>
+              {% for key, label in planos.items() %}
+              <option value="{{ key }}"
+                {% if reg and reg.plano == key %}selected{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div id="info-plano" class="alert alert-secondary small mb-3"></div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Data de Início <span class="text-danger">*</span></label>
+              <input type="date" name="data_inicio" class="form-control"
+                     value="{{ reg.data_inicio if reg else '' }}" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Data de Encerramento</label>
+              <input type="date" name="data_fim" class="form-control"
+                     value="{{ reg.data_fim if reg and reg.data_fim else '' }}">
+              <div class="form-text">Deixe em branco se ainda está ativa.</div>
+            </div>
+          </div>
+
+          <div class="mb-4 form-check">
+            <input type="checkbox" class="form-check-input" name="ativo" id="ativo"
+                   {% if not reg or reg.ativo %}checked{% endif %}>
+            <label class="form-check-label" for="ativo">Assinatura ativa</label>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">
+              <i class="bi bi-check-lg me-1"></i>Salvar
+            </button>
+            <a href="{{ url_for('clube') }}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PQ_PLANO = {{ pqs_por_plano | tojson }};
+const DESCRICAO = {
+  mais: 'Plano Mais — sem PQs mensais, 2.000 milhas/mês.',
+  embarque_sem_itau: 'Embarque (sem Itaú) — <strong>500 PQs/mês</strong>, 2.000 milhas/mês.',
+  embarque_com_itau: 'Embarque (com Itaú) — <strong>750 PQs/mês</strong>, 2.000 milhas/mês + categoria Gold automática.',
+  acelere: 'Acelere — sem PQs mensais diretos, 4.500 milhas/mês + Gold automático.',
+  turbo: 'Turbo — sem PQs mensais diretos, 10.500 milhas/mês + Gold automático.',
+};
+function atualizarInfo() {
+  const plano = document.getElementById('plano').value;
+  const pq = PQ_PLANO[plano] || 0;
+  const desc = DESCRICAO[plano] || '';
+  document.getElementById('info-plano').innerHTML =
+    '<i class="bi bi-info-circle me-1"></i>' + desc +
+    (pq > 0 ? ` <strong class="text-success">(+${pq * 12} PQs em 12 meses)</strong>` : '');
+}
+document.getElementById('plano').addEventListener('change', atualizarInfo);
+atualizarInfo();
+</script>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Validar Atividade — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <div class="card border-0">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-check2-circle me-1 text-success"></i>Validar Atividade
+      </div>
+      <div class="card-body">
+
+        <!-- Resumo da atividade -->
+        <div class="table-responsive mb-4">
+          <table class="table table-sm table-bordered mb-0">
+            <tbody>
+              <tr>
+                <th class="bg-light w-35">Tipo</th>
+                <td><span class="badge bg-secondary">{{ tipos.get(ativ.tipo, ativ.tipo) }}</span></td>
+              </tr>
+              <tr>
+                <th class="bg-light">Data</th>
+                <td>{{ ativ.data_atividade | fmt_data }}</td>
+              </tr>
+              <tr>
+                <th class="bg-light">Descrição</th>
+                <td>{{ ativ.descricao }}</td>
+              </tr>
+              <tr>
+                <th class="bg-light">PQs Estimados</th>
+                <td class="fw-bold text-primary pq-num fs-5">{{ ativ.pq_estimado | fmt_pq }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Detalhes brutos -->
+        {% if ativ.dados %}
+        <details class="mb-4">
+          <summary class="text-muted small cursor-pointer">Ver dados brutos do lançamento</summary>
+          <div class="mt-2 p-3 bg-light rounded small font-monospace">
+            {% for k, v in ativ.dados.items() %}
+            <div><span class="text-muted">{{ k }}:</span> {{ v }}</div>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+
+        <!-- Formulário de confirmação -->
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              PQs Efetivamente Recebidos <span class="text-danger">*</span>
+            </label>
+            <input type="number" name="pq_confirmado" class="form-control form-control-lg"
+                   value="{{ ativ.pq_estimado | int }}"
+                   step="1" min="0" required autofocus>
+            <div class="form-text">
+              Confirme ou ajuste o valor conforme o extrato real do LATAM Pass.
+              O valor pré-preenchido é a estimativa calculada no lançamento.
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-check-lg me-1"></i>Marcar como PQ Recebido
+            </button>
+            <a href="{{ url_for('atividades_lista') }}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

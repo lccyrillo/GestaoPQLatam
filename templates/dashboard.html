@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-speedometer2 me-2 text-danger"></i>Dashboard</h4>
+  <form class="d-flex gap-2 align-items-center">
+    <label class="mb-0 fw-semibold small">Ano:</label>
+    <select name="ano" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      {% for a in anos %}
+        <option value="{{ a }}" {% if a==ano %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- Cards de resumo -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">PQs Estimados</div>
+        <div class="fs-3 fw-bold text-primary pq-num">{{ totais.total_estimado | fmt_pq }}</div>
+        <div class="text-muted small">Total de atividades lançadas</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">PQs Confirmados</div>
+        <div class="fs-3 fw-bold text-success pq-num">{{ totais.total_confirmado | fmt_pq }}</div>
+        <div class="text-muted small">Já creditados no programa</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Pendentes de Validação</div>
+        <div class="fs-3 fw-bold text-warning pq-num">{{ totais.pendentes }}</div>
+        <div class="text-muted small">Aguardando confirmação</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 h-100">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Total de Atividades</div>
+        <div class="fs-3 fw-bold text-secondary pq-num">{{ totais.total_atividades }}</div>
+        <div class="text-muted small">Lançadas em {{ ano }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Progresso por categoria -->
+<div class="card border-0 mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-trophy me-1 text-warning"></i>Progresso para Categorias Elite — {{ ano }}
+  </div>
+  <div class="card-body">
+    {% for cat in categorias %}
+    <div class="mb-3">
+      <div class="d-flex justify-content-between mb-1">
+        <span class="fw-semibold {% if cat.atingida %}text-success{% endif %}">
+          {% if cat.atingida %}<i class="bi bi-check-circle-fill text-success me-1"></i>{% endif %}
+          {{ cat.nome }}
+        </span>
+        <span class="text-muted small">
+          {{ totais.total_estimado | fmt_pq }} / {{ cat.meta | fmt_pq }} PQs
+          {% if not cat.atingida %}— faltam {{ cat.falta | fmt_pq }}{% endif %}
+        </span>
+      </div>
+      <div class="progress">
+        <div class="progress-bar
+          {% if cat.atingida %}bg-success
+          {% elif cat.percentual >= 75 %}bg-info
+          {% elif cat.percentual >= 40 %}bg-warning
+          {% else %}bg-danger{% endif %}"
+          style="width: {{ cat.percentual }}%">
+          {{ cat.percentual }}%
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Atividades recentes -->
+<div class="card border-0">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-clock-history me-1"></i>Atividades Recentes</span>
+    <a href="{{ url_for('atividades_lista', ano=ano) }}" class="btn btn-sm btn-outline-secondary">Ver todas</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Data</th>
+          <th>Tipo</th>
+          <th>Descrição</th>
+          <th class="text-end">PQs Est.</th>
+          <th class="text-end">PQs Conf.</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in recentes %}
+        <tr>
+          <td class="text-nowrap">{{ a.data_atividade | fmt_data }}</td>
+          <td><span class="badge bg-secondary">{{ tipos.get(a.tipo, a.tipo) }}</span></td>
+          <td>{{ a.descricao }}</td>
+          <td class="text-end pq-num">{{ a.pq_estimado | fmt_pq }}</td>
+          <td class="text-end pq-num">{{ a.pq_confirmado | fmt_pq }}</td>
+          <td>
+            {% set cor, lbl = status_label.get(a.status, ('secondary','?')) %}
+            <span class="badge bg-{{ cor }}">{{ lbl }}</span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-3">Nenhuma atividade lançada em {{ ano }}.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
