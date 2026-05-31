@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Custo de PQs — LATAM PQ{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <h4 class="mb-0"><i class="bi bi-currency-dollar me-2 text-danger"></i>Custo de PQs por Canal</h4>
+  <span class="text-muted small ms-1">Quanto custa cada PQ em cada forma de acúmulo.</span>
+</div>
+
+<!-- Cotação do dólar -->
+<div class="card border-0 mb-4">
+  <div class="card-body py-3">
+    <div class="row align-items-center g-3">
+      <div class="col-auto">
+        <label class="form-label fw-semibold mb-0">
+          <i class="bi bi-currency-exchange me-1 text-primary"></i>Cotação estimada do dólar
+        </label>
+      </div>
+      <div class="col-auto d-flex align-items-center gap-2">
+        <span class="text-muted">US$ 1,00 =</span>
+        <div class="input-group input-group-sm" style="width:130px">
+          <span class="input-group-text">R$</span>
+          <input type="number" id="cotacao-input" class="form-control"
+                 value="5.00" min="0.01" step="0.01"
+                 onkeydown="if(event.key==='Enter') recalcular()">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="recalcular()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Recalcular
+        </button>
+      </div>
+      <div class="col-auto">
+        <span class="badge bg-info text-dark small">
+          <i class="bi bi-info-circle me-1"></i>
+          Linhas marcadas com <i class="bi bi-currency-dollar"></i> variam conforme a cotação
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabela de custos -->
+<div class="card border-0">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-table me-1 text-secondary"></i>Comparativo de custo por canal de acúmulo
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="tabela-custo">
+      <thead class="table-light">
+        <tr>
+          <th class="text-center" style="width:36px">#</th>
+          <th>Canal</th>
+          <th>Taxa</th>
+          <th>Cálculo PQ</th>
+          <th class="text-center">PQ por dólar/R$</th>
+          <th class="text-end">Custo por PQ</th>
+          <th class="text-end">Limite/ano</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Linha 1 -->
+        <tr>
+          <td class="text-center text-muted small">1</td>
+          <td>
+            <span class="fw-semibold">Clube + Booster</span>
+            <span class="badge bg-success ms-1 small">com cartão Itaú</span>
+          </td>
+          <td class="small text-muted">750 PQ/mês por R$90,80</td>
+          <td class="small text-muted">R$90,80 ÷ 750 PQ</td>
+          <td class="text-center small">—</td>
+          <td class="text-end fw-bold text-success" data-custo-fixo="0.1213">R$ 0,12</td>
+          <td class="text-end small">9.000</td>
+        </tr>
+        <!-- Linha 2 -->
+        <tr>
+          <td class="text-center text-muted small">2</td>
+          <td>
+            <span class="fw-semibold">Clube + Booster</span>
+            <span class="badge bg-secondary ms-1 small">sem cartão Itaú</span>
+          </td>
+          <td class="small text-muted">500 PQ/mês por R$90,80</td>
+          <td class="small text-muted">R$90,80 ÷ 500 PQ</td>
+          <td class="text-center small">—</td>
+          <td class="text-end fw-bold text-success" data-custo-fixo="0.1816">R$ 0,18</td>
+          <td class="text-end small">6.000</td>
+        </tr>
+        <!-- Linha 3 -->
+        <tr>
+          <td class="text-center text-muted small">3</td>
+          <td>
+            <span class="fw-semibold">Voos nacionais LATAM</span>
+            <span class="badge bg-warning text-dark ms-1 small">+50% bônus Clube</span>
+          </td>
+          <td class="small text-muted">4,5 PQ por R$1</td>
+          <td class="small text-muted">3 PQ base × 1,5 bônus</td>
+          <td class="text-center small">4,5 PQ/R$1</td>
+          <td class="text-end fw-bold text-success" data-custo-fixo="0.2222">R$ 0,22</td>
+          <td class="text-end small text-muted">sem limite</td>
+        </tr>
+        <!-- Linha 4 -->
+        <tr>
+          <td class="text-center text-muted small">4</td>
+          <td>
+            <span class="fw-semibold">Voos nacionais LATAM</span>
+            <span class="text-muted small ms-1">(base)</span>
+          </td>
+          <td class="small text-muted">3 PQ por R$1</td>
+          <td class="small text-muted">direto pelo programa</td>
+          <td class="text-center small">3 PQ/R$1</td>
+          <td class="text-end fw-bold text-success" data-custo-fixo="0.3333">R$ 0,33</td>
+          <td class="text-end small text-muted">sem limite</td>
+        </tr>
+        <!-- Linha 5 — varia com dólar -->
+        <tr class="table-primary">
+          <td class="text-center text-muted small">5</td>
+          <td>
+            <span class="fw-semibold">Booking / Aluguel carro / Seguro</span>
+            <span class="badge bg-primary ms-1 small">microsite LATAM</span>
+            <i class="bi bi-currency-dollar text-primary ms-1" title="Varia com a cotação do dólar"></i>
+          </td>
+          <td class="small text-muted">6 PQ por US$1</td>
+          <td class="small text-muted">direto pelo programa</td>
+          <td class="text-center small">6 PQ/US$1</td>
+          <td class="text-end fw-bold custo-dolar" data-pq-usd="6" id="custo-5">R$ 0,83</td>
+          <td class="text-end small">30.000/reserva</td>
+        </tr>
+        <!-- Linha 6 — varia com dólar -->
+        <tr class="table-primary">
+          <td class="text-center text-muted small">6</td>
+          <td>
+            <span class="fw-semibold">Voos internacionais LATAM</span>
+            <i class="bi bi-currency-dollar text-primary ms-1" title="Varia com a cotação do dólar"></i>
+          </td>
+          <td class="small text-muted">6 PQ por US$1</td>
+          <td class="small text-muted">direto pelo programa</td>
+          <td class="text-center small">6 PQ/US$1</td>
+          <td class="text-end fw-bold custo-dolar" data-pq-usd="6" id="custo-6">R$ 0,83</td>
+          <td class="text-end small text-muted">sem limite</td>
+        </tr>
+        <!-- Linha 7 -->
+        <tr>
+          <td class="text-center text-muted small">7</td>
+          <td>
+            <span class="fw-semibold">Disney / Decolar via LATAM</span>
+          </td>
+          <td class="small text-muted">1 PQ por R$1</td>
+          <td class="small text-muted">direto pelo programa</td>
+          <td class="text-center small">1 PQ/R$1</td>
+          <td class="text-end fw-bold" data-custo-fixo="1.0">R$ 1,00</td>
+          <td class="text-end small text-muted">sem limite</td>
+        </tr>
+        <!-- Linha 8 — varia com dólar -->
+        <tr class="table-warning">
+          <td class="text-center text-muted small">8</td>
+          <td>
+            <span class="fw-semibold">Nubank Ultravioleta</span>
+            <span class="badge bg-warning text-dark ms-1 small">compras correntes</span>
+            <i class="bi bi-currency-dollar text-warning ms-1" title="Varia com a cotação do dólar"></i>
+          </td>
+          <td class="small text-muted">2,2 milhas/dólar → 1 PQ a cada 4 milhas</td>
+          <td class="small text-muted">2,2 ÷ 4 = 0,55 PQ/dólar</td>
+          <td class="text-center small">0,55 PQ/US$1</td>
+          <td class="text-end fw-bold custo-dolar" data-pq-usd="0.55" id="custo-8">R$ 9,09</td>
+          <td class="text-end small">60.000</td>
+        </tr>
+        <!-- Linha 9 — varia com dólar -->
+        <tr class="table-warning">
+          <td class="text-center text-muted small">9</td>
+          <td>
+            <span class="fw-semibold">Itaú LATAM Pass Black</span>
+            <span class="badge bg-dark ms-1 small">compras nacionais</span>
+            <i class="bi bi-currency-dollar text-warning ms-1" title="Varia com a cotação do dólar"></i>
+          </td>
+          <td class="small text-muted">2,5 milhas/dólar → 2 PQ a cada 10 milhas</td>
+          <td class="small text-muted">2,5 × 0,2 = 0,5 PQ/dólar</td>
+          <td class="text-center small">0,50 PQ/US$1</td>
+          <td class="text-end fw-bold custo-dolar" data-pq-usd="0.50" id="custo-9">R$ 10,00</td>
+          <td class="text-end small">9.000</td>
+        </tr>
+        <!-- Linha 10 — varia com dólar -->
+        <tr class="table-warning">
+          <td class="text-center text-muted small">10</td>
+          <td>
+            <span class="fw-semibold">Itaú LATAM Pass Platinum</span>
+            <span class="badge bg-secondary ms-1 small">compras nacionais</span>
+            <i class="bi bi-currency-dollar text-warning ms-1" title="Varia com a cotação do dólar"></i>
+          </td>
+          <td class="small text-muted">2 milhas/dólar → 2 PQ a cada 10 milhas</td>
+          <td class="small text-muted">2,0 × 0,2 = 0,4 PQ/dólar</td>
+          <td class="text-center small">0,40 PQ/US$1</td>
+          <td class="text-end fw-bold custo-dolar" data-pq-usd="0.40" id="custo-10">R$ 12,50</td>
+          <td class="text-end small">5.000</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white text-muted small">
+    <i class="bi bi-info-circle me-1"></i>
+    Linhas em <span class="badge bg-primary" style="font-size:.65rem">azul</span> e
+    <span class="badge bg-warning text-dark" style="font-size:.65rem">amarelo</span>
+    têm custo por PQ calculado com base na cotação do dólar informada acima.
+    Os valores de custo por PQ indicam quanto você paga em reais por cada PQ acumulado.
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmtBRL(valor) {
+  return 'R$ ' + valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function recalcular() {
+  const cotacao = parseFloat(document.getElementById('cotacao-input').value) || 5.00;
+  if (cotacao <= 0) return;
+
+  document.querySelectorAll('.custo-dolar').forEach(function(el) {
+    const pqUsd = parseFloat(el.dataset.pqUsd);
+    if (!pqUsd) return;
+    const custo = cotacao / pqUsd;
+    el.textContent = fmtBRL(custo);
+
+    // Colorir custo: verde < 2, amarelo 2-5, vermelho > 5
+    el.classList.remove('text-success','text-warning','text-danger');
+    if (custo < 2) el.classList.add('text-success');
+    else if (custo < 5) el.classList.add('text-warning');
+    else el.classList.add('text-danger');
+  });
+}
+
+// Calcular com cotação inicial R$5,00
+recalcular();
+</script>
+{% endblock %}

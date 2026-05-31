@@ -44,7 +44,7 @@ encerrar_instancias_anteriores()
 app = Flask(__name__, template_folder=_TEMPLATE_DIR)
 app.secret_key = 'gestaopqlatam-2025'
 
-APP_VERSAO = '1.07'
+APP_VERSAO = '1.08'
 
 db.init_db()
 db.aplicar_migracoes()
@@ -867,6 +867,11 @@ def sql_console():
                 erro = str(e)
 
     return render_template('sql_console.html', query=query, colunas=colunas, linhas=linhas, erro=erro, tabelas=tabelas)
+
+
+@app.route('/custo-pq')
+def custo_pq():
+    return render_template('custo_pq.html')
 
 
 # ── Inicialização ─────────────────────────────────────────────────────────────
