@@ -96,8 +96,11 @@
             <option value="seguro">Seguro Viagem</option>
             <option value="hospedagem">Hospedagem</option>
             <option value="clube">Clube LATAM</option>
-            {% if cartoes_sim %}
+            {% if cartoes_itau_sim %}
             <option value="cartao_itau">Cartão Itaú</option>
+            {% endif %}
+            {% if cartoes_nubank_sim %}
+            <option value="cartao_nubank">Cartão Nubank</option>
             {% endif %}
             <option value="bonificacao">Bonificação Extra</option>
           </select>
@@ -175,12 +178,12 @@
           {% endif %}
         </div>
 
-        <!-- ── CARTÃO ── -->
+        <!-- ── CARTÃO ITAÚ ── -->
         <div id="sim-bloco-cartao_itau" class="sim-bloco d-none">
           <div class="mb-2">
             <label class="form-label small fw-semibold">Cartão</label>
             <select id="sim-cartao-id" class="form-select form-select-sm" onchange="simPreviewCartao()">
-              {% for c in cartoes_sim %}
+              {% for c in cartoes_itau_sim %}
               <option value="{{ c.id }}" data-tipo="{{ c.tipo }}"
                       data-restante="{{ c.pq_restante }}" data-limite="{{ c.limite_anual }}">
                 {{ c.nome }} (restam {{ c.pq_restante | int | fmt_pq }} PQs no limite anual)
@@ -212,6 +215,45 @@
             </div>
           </div>
           <div class="small text-primary mb-2" id="sim-cartao-preview"></div>
+        </div>
+
+        <!-- ── CARTÃO NUBANK ── -->
+        <div id="sim-bloco-cartao_nubank" class="sim-bloco d-none">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Cartão</label>
+            <select id="sim-nubank-id" class="form-select form-select-sm" onchange="simPreviewNubank()">
+              {% for c in cartoes_nubank_sim %}
+              <option value="{{ c.id }}" data-tipo="{{ c.tipo }}"
+                      data-restante="{{ c.pq_restante }}" data-limite="{{ c.limite_anual }}">
+                {{ c.nome }} (restam {{ c.pq_restante | int | fmt_pq }} PQs no limite anual)
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Gasto (R$)</label>
+            <input type="number" id="sim-nubank-valor" class="form-control form-control-sm"
+                   placeholder="0,00" step="0.01" min="0" oninput="simPreviewNubank()">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Cotação (R$/US$)</label>
+            <input type="number" id="sim-nubank-cotacao" class="form-control form-control-sm"
+                   placeholder="Ex: 5,80" step="0.01" min="0.01" oninput="simPreviewNubank()">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Tipo de compra</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="sim-local-nubank" id="sim-nubank-regular" value="regular" checked onchange="simPreviewNubank()">
+                <label class="form-check-label small" for="sim-nubank-regular">Regular <span class="text-muted">(2,2 mi/US$1)</span></label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="sim-local-nubank" id="sim-nubank-nuviagens" value="nu_viagens" onchange="simPreviewNubank()">
+                <label class="form-check-label small" for="sim-nubank-nuviagens">Nu Viagens <span class="text-muted">(9,0 mi/US$1)</span></label>
+              </div>
+            </div>
+          </div>
+          <div class="small text-primary mb-2" id="sim-nubank-preview"></div>
         </div>
 
         <!-- ── BONIFICAÇÃO ── -->
@@ -325,7 +367,7 @@ function simAtualizarVoo() {
 
 function simLimparPreviews() {
   ['sim-voo-preview','sim-carro-preview','sim-seguro-preview',
-   'sim-hosp-preview','sim-clube-preview','sim-cartao-preview'].forEach(id => {
+   'sim-hosp-preview','sim-clube-preview','sim-cartao-preview','sim-nubank-preview'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = '';
   });
@@ -387,6 +429,23 @@ function simPreviewCartao() {
   const usd     = valor / cotacao;
   const pq      = (usd * taxa / 10) * 2;
   el.innerHTML  = `US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${taxa} mi → <strong>${fmtPq(pq)} PQs</strong>`;
+}
+
+function simPreviewNubank() {
+  const sel     = document.getElementById('sim-nubank-id');
+  if (!sel) return;
+  const opt     = sel.options[sel.selectedIndex];
+  const tipo    = opt?.dataset.tipo || '';
+  const valor   = parseFloat(document.getElementById('sim-nubank-valor').value) || 0;
+  const cotacao = parseFloat(document.getElementById('sim-nubank-cotacao').value) || 0;
+  const local   = document.querySelector('input[name="sim-local-nubank"]:checked')?.value || 'regular';
+  const el      = document.getElementById('sim-nubank-preview');
+  if (!el || !tipo || cotacao <= 0) { if (el) el.textContent = ''; return; }
+  const taxa    = (MILHAS_CARTAO[tipo] || {})[local] || 0;
+  const usd     = valor / cotacao;
+  const milhas  = usd * taxa;
+  const pq      = milhas / 4;   // Nubank: 4 milhas = 1 PQ
+  el.innerHTML  = `US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${taxa} mi → ${milhas.toLocaleString('pt-BR',{maximumFractionDigits:0})} milhas ÷ 4 → <strong>${fmtPq(pq)} PQs</strong>`;
 }
 
 // ── Feedback de erro ──────────────────────────────────────────────────────────
@@ -535,6 +594,12 @@ async function simAdicionar() {
     payload.valor     = parseFloat(document.getElementById('sim-cartao-valor').value) || 0;
     payload.cotacao   = parseFloat(document.getElementById('sim-cartao-cotacao').value) || 0;
     payload.local     = document.querySelector('input[name="sim-local"]:checked')?.value || 'brasil';
+
+  } else if (tipo === 'cartao_nubank') {
+    payload.cartao_id = parseInt(document.getElementById('sim-nubank-id')?.value) || 0;
+    payload.valor     = parseFloat(document.getElementById('sim-nubank-valor').value) || 0;
+    payload.cotacao   = parseFloat(document.getElementById('sim-nubank-cotacao').value) || 0;
+    payload.local     = document.querySelector('input[name="sim-local-nubank"]:checked')?.value || 'regular';
 
   } else if (tipo === 'bonificacao') {
     payload.pq        = parseFloat(document.getElementById('sim-bonus-pq')?.value) || 0;

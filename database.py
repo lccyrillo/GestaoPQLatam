@@ -4,6 +4,7 @@ import sqlite3
 import json
 import os
 import sys
+from datetime import datetime
 
 # Quando empacotado pelo PyInstaller (frozen), o .exe fica em sys.executable.
 # O banco deve ficar ao lado do .exe, não na pasta temporária de extração.
@@ -12,7 +13,8 @@ if getattr(sys, 'frozen', False):
 else:
     _BASE = os.path.dirname(os.path.abspath(__file__))
 
-DB_PATH = os.path.join(_BASE, 'dados.db')
+DB_PATH   = os.path.join(_BASE, 'dados.db')
+LOGS_DIR  = os.path.join(_BASE, 'logs')
 
 
 def get_conn():
@@ -55,7 +57,85 @@ def init_db():
                 criado_em       DATETIME DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em   DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS schema_version (
+                versao      INTEGER NOT NULL,
+                aplicado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         ''')
+
+
+def _get_versao_schema(conn) -> int:
+    """Retorna a versão atual do schema; 0 se a tabela ainda não foi inicializada."""
+    try:
+        r = conn.execute('SELECT versao FROM schema_version').fetchone()
+        return r[0] if r else 0
+    except sqlite3.OperationalError:
+        return 0
+
+
+def aplicar_migracoes():
+    """Detecta e aplica migrações de schema pendentes. Aborta com rollback em caso de falha."""
+    from migrations import SCHEMA_VERSION_ATUAL, MIGRATIONS
+
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    log_path = os.path.join(LOGS_DIR, 'migration.log')
+
+    def _log(msg: str):
+        linha = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} — {msg}"
+        print(linha)
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(linha + '\n')
+
+    # isolation_level=None = autocommit; permite controle explícito de BEGIN/COMMIT/ROLLBACK
+    conn = sqlite3.connect(DB_PATH, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA foreign_keys = ON')
+
+    try:
+        versao_atual = _get_versao_schema(conn)
+
+        if versao_atual == 0:
+            # Primeiro uso em banco existente — registra versão baseline sem rodar migrações.
+            conn.execute('BEGIN')
+            conn.execute('INSERT INTO schema_version (versao) VALUES (?)', (SCHEMA_VERSION_ATUAL,))
+            conn.execute('COMMIT')
+            _log(f'Schema inicializado na versão {SCHEMA_VERSION_ATUAL}.')
+            return
+
+        pendentes = sorted(v for v in MIGRATIONS if v > versao_atual)
+        if not pendentes:
+            return
+
+        versao_alvo = max(pendentes)
+        _log(f'Início de migração: schema v{versao_atual} → v{versao_alvo}')
+
+        conn.execute('BEGIN')
+        try:
+            for v in pendentes:
+                _log(f'Aplicando migração v{v}...')
+                for stmt in MIGRATIONS[v].split(';'):
+                    stmt = stmt.strip()
+                    if stmt:
+                        conn.execute(stmt)
+            conn.execute(
+                'UPDATE schema_version SET versao=?, aplicado_em=CURRENT_TIMESTAMP',
+                (versao_alvo,)
+            )
+            conn.execute('COMMIT')
+            _log(f'Migração concluída com sucesso: schema v{versao_alvo}.')
+        except Exception as e:
+            conn.execute('ROLLBACK')
+            _log(f'ERRO na migração para v{versao_alvo}: {e}. Rollback aplicado — banco restaurado.')
+            raise RuntimeError(
+                f'\n\n*** FALHA NA MIGRAÇÃO DO BANCO DE DADOS ***\n'
+                f'Schema esperado: v{versao_alvo} | Schema atual: v{versao_atual}\n'
+                f'Detalhe: {e}\n'
+                f'O banco foi restaurado ao estado anterior (v{versao_atual}).\n'
+                f'Consulte o log em: {log_path}\n'
+            )
+    finally:
+        conn.close()
 
 
 # ── Cartões ──────────────────────────────────────────────────────────────────
@@ -89,8 +169,15 @@ def salvar_cartao(nome, tipo, ativo, cartao_id=None):
             )
 
 
+def contar_atividades_cartao(cartao_id):
+    with get_conn() as conn:
+        r = conn.execute('SELECT COUNT(*) FROM atividades WHERE cartao_id=?', (cartao_id,)).fetchone()
+        return r[0]
+
+
 def excluir_cartao(cartao_id):
     with get_conn() as conn:
+        conn.execute('DELETE FROM atividades WHERE cartao_id = ?', (cartao_id,))
         conn.execute('DELETE FROM cartoes WHERE id = ?', (cartao_id,))
 
 

@@ -259,12 +259,12 @@
           <!-- ── CARTÃO ITAÚ ─────────────────────────────────────────────── -->
           <div id="bloco-cartao_itau" class="bloco d-none">
             <hr><h6 class="text-muted mb-3"><i class="bi bi-credit-card me-1"></i>Cartão de Crédito Itaú</h6>
-            {% if cartoes %}
+            {% if cartoes_itau %}
             <div class="row mb-3">
               <div class="col-md-6">
                 <label class="form-label fw-semibold">Cartão <span class="text-danger">*</span></label>
                 <select name="cartao_id" id="cartao_id" class="form-select">
-                  {% for c in cartoes %}
+                  {% for c in cartoes_itau %}
                   <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.nome }}</option>
                   {% endfor %}
                 </select>
@@ -366,7 +366,126 @@
             {% else %}
             <div class="alert alert-warning small">
               <i class="bi bi-exclamation-triangle me-1"></i>
-              Nenhum cartão cadastrado. <a href="{{ url_for('cartao_novo') }}">Cadastrar cartão</a>.
+              Nenhum cartão Itaú cadastrado. <a href="{{ url_for('cartao_novo') }}">Cadastrar cartão</a>.
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- ── CARTÃO NUBANK ──────────────────────────────────────────────── -->
+          <div id="bloco-cartao_nubank" class="bloco d-none">
+            <hr><h6 class="text-muted mb-3"><i class="bi bi-credit-card me-1 text-danger"></i>Cartão Nubank Ultravioleta</h6>
+            {% if cartoes_nubank %}
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Cartão <span class="text-danger">*</span></label>
+                <select name="cartao_id_nubank" id="cartao_id_nubank" class="form-select">
+                  {% for c in cartoes_nubank %}
+                  <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.nome }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Mês ref.</label>
+                <select name="mes_nubank" id="mes_nubank" class="form-select">
+                  {% for m in range(1,13) %}
+                  <option value="{{ m }}">{{ '%02d'|format(m) }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Ano ref.</label>
+                <input type="number" name="ano_ref_nubank" id="ano_ref_nubank" class="form-control"
+                       value="{{ ano_atual }}" min="2020" max="2030">
+              </div>
+            </div>
+
+            <!-- Tipo de compra Nubank -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Tipo de compra</label>
+              <div class="d-flex gap-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="local_compra_nubank"
+                         id="local_regular" value="regular" checked>
+                  <label class="form-check-label" for="local_regular">
+                    Compra Regular <span class="text-muted small">(2,2 mi/US$1)</span>
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="local_compra_nubank"
+                         id="local_nu_viagens" value="nu_viagens">
+                  <label class="form-check-label" for="local_nu_viagens">
+                    Nu Viagens — Voos e Hotéis <span class="text-muted small">(9,0 mi/US$1)</span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-text">
+                Nu Viagens aplica-se somente a voos e hospedagens comprados diretamente pelo Nu Viagens.
+              </div>
+            </div>
+
+            <!-- Valor em BRL + Cotação -->
+            <div class="row mb-3">
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">Gasto total no mês (R$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="valor_brl_nubank" id="valor_brl_nubank"
+                         class="form-control" placeholder="0,00" step="0.01" min="0">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Cotação do dólar (R$/US$) <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text">R$</span>
+                  <input type="number" name="cotacao_dolar_nubank" id="cotacao_dolar_nubank"
+                         class="form-control" placeholder="Ex: 5,80" step="0.01" min="0.01">
+                </div>
+                <div class="form-text">Cotação estimada do mês de referência.</div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Valor em US$</label>
+                <div class="input-group">
+                  <span class="input-group-text text-muted">US$</span>
+                  <input type="text" id="valor_usd_nubank" class="form-control bg-light"
+                         readonly placeholder="—">
+                </div>
+                <div class="form-text">Calculado automaticamente.</div>
+              </div>
+            </div>
+
+            <!-- Info limite anual Nubank -->
+            <div id="info-limite-nubank" class="alert alert-secondary small d-none">
+              <div class="row text-center g-2">
+                <div class="col">
+                  <div class="text-muted">Milhas geradas</div>
+                  <strong id="iln-milhas">—</strong>
+                </div>
+                <div class="col">
+                  <div class="text-muted">PQs brutos</div>
+                  <strong id="iln-bruto">—</strong>
+                </div>
+                <div class="col">
+                  <div class="text-muted">Já acumulado</div>
+                  <strong id="iln-acumulado">—</strong>
+                </div>
+                <div class="col">
+                  <div class="text-muted">Disponível no limite</div>
+                  <strong id="iln-restante" class="text-success">—</strong>
+                </div>
+                <div class="col">
+                  <div class="text-muted">Limite anual</div>
+                  <strong id="iln-limite">—</strong>
+                </div>
+              </div>
+              <div class="mt-2 text-muted" style="font-size:0.78rem">
+                <i class="bi bi-info-circle me-1"></i>
+                O bônus de +10% das transferências automáticas (a cada 7 dias) não é contabilizado nos PQs.
+              </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning small">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Nenhum cartão Nubank cadastrado. <a href="{{ url_for('cartao_novo') }}">Cadastrar cartão</a>.
             </div>
             {% endif %}
           </div>
@@ -686,9 +805,10 @@ function calcularBonificacao() {
 
 // Taxas de milhas por cartão e local (espelho do calculadora.py)
 const MILHAS_CARTAO = {
-  platinum:        {brasil: 1.5, exterior: 2.0},
-  visa_infinite:   {brasil: 2.5, exterior: 3.5},
-  mastercard_black:{brasil: 2.5, exterior: 3.5},
+  platinum:            {brasil: 1.5, exterior: 2.0},
+  visa_infinite:       {brasil: 2.5, exterior: 3.5},
+  mastercard_black:    {brasil: 2.5, exterior: 3.5},
+  nubank_ultravioleta: {regular: 2.2, nu_viagens: 9.0},
 };
 
 function atualizarTaxasCartao() {
@@ -735,6 +855,43 @@ async function calcularCartao() {
   document.getElementById('il-limite').textContent   = fmtPq(data.limite_anual) + ' PQs';
 
   const det = `R$ ${valorBrl.toLocaleString('pt-BR',{minimumFractionDigits:2})} ÷ ${cotacao} = US$ ${data.valor_usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${data.taxa_milhas} mi/US$1 → ${data.milhas.toFixed(0)} milhas → ${fmtPq(data.pq_bruto)} PQs brutos (efetivos: ${fmtPq(data.pq_efetivo)})`;
+  mostrarPreview(data.pq_efetivo, det);
+}
+
+function atualizarUSD_Nubank() {
+  const brl = parseFloat(document.getElementById('valor_brl_nubank')?.value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacao_dolar_nubank')?.value) || 0;
+  const el = document.getElementById('valor_usd_nubank');
+  if (el) {
+    el.value = cotacao > 0 ? (brl / cotacao).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '—';
+  }
+}
+
+async function calcularCartaoNubank() {
+  const cartaoId = document.getElementById('cartao_id_nubank')?.value;
+  const valorBrl = parseFloat(document.getElementById('valor_brl_nubank')?.value) || 0;
+  const cotacao  = parseFloat(document.getElementById('cotacao_dolar_nubank')?.value) || 0;
+  const local    = document.querySelector('input[name="local_compra_nubank"]:checked')?.value || 'regular';
+  const ano      = document.getElementById('ano_ref_nubank')?.value;
+  if (!cartaoId || !valorBrl || cotacao <= 0) return;
+
+  atualizarUSD_Nubank();
+
+  const url = `/api/calcular-pq-cartao?cartao_id=${cartaoId}&valor_brl=${valorBrl}&cotacao=${cotacao}&local_compra=${local}&ano=${ano}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.erro) return;
+
+  const info = document.getElementById('info-limite-nubank');
+  info.classList.remove('d-none');
+  document.getElementById('iln-milhas').textContent    = data.milhas.toLocaleString('pt-BR', {maximumFractionDigits:0}) + ' mi';
+  document.getElementById('iln-bruto').textContent     = fmtPq(data.pq_bruto) + ' PQs';
+  document.getElementById('iln-acumulado').textContent = fmtPq(data.ja_acumulado) + ' PQs';
+  document.getElementById('iln-restante').textContent  = fmtPq(data.restante) + ' PQs';
+  document.getElementById('iln-limite').textContent    = fmtPq(data.limite_anual) + ' PQs';
+
+  const localLabel = local === 'nu_viagens' ? 'Nu Viagens (9,0 mi/US$1)' : 'Regular (2,2 mi/US$1)';
+  const det = `R$ ${valorBrl.toLocaleString('pt-BR',{minimumFractionDigits:2})} ÷ ${cotacao} = US$ ${data.valor_usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${data.taxa_milhas} mi/US$1 → ${data.milhas.toFixed(0)} milhas ÷ 4 → ${fmtPq(data.pq_bruto)} PQs brutos · ${localLabel}`;
   mostrarPreview(data.pq_efetivo, det);
 }
 
@@ -814,6 +971,21 @@ let timerCartao;
 });
 document.querySelectorAll('input[name="local_compra"]').forEach(el => {
   el.addEventListener('change', calcularCartao);
+});
+
+// Cartão Nubank — init e listeners
+document.getElementById('cartao_id_nubank')?.addEventListener('change', calcularCartaoNubank);
+let timerNubank;
+['valor_brl_nubank','cotacao_dolar_nubank','mes_nubank','ano_ref_nubank'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => {
+    atualizarUSD_Nubank();
+    clearTimeout(timerNubank);
+    timerNubank = setTimeout(calcularCartaoNubank, 400);
+  });
+});
+document.querySelectorAll('input[name="local_compra_nubank"]').forEach(el => {
+  el.addEventListener('change', calcularCartaoNubank);
 });
 
 // Data de hoje como default

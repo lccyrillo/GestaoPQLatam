@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0"><i class="bi bi-credit-card me-2 text-danger"></i>Cartões de Crédito Itaú</h4>
+  <h4 class="mb-0"><i class="bi bi-credit-card me-2 text-danger"></i>Cartões de Crédito</h4>
   <a href="{{ url_for('cartao_novo') }}" class="btn btn-danger btn-sm">
     <i class="bi bi-plus-lg me-1"></i>Novo Cartão
   </a>
@@ -28,18 +28,27 @@
         <div class="row text-center">
           <div class="col">
             <div class="small text-muted">Limite anual PQs</div>
-            <div class="fw-semibold text-primary">{{ limites.get(c.tipo, 0) | int | string | replace('000', '.000') }} PQs</div>
+            <div class="fw-semibold text-primary">{{ limites.get(c.tipo, 0) | int | fmt_pq }} PQs</div>
           </div>
           <div class="col">
+            {% if c.tipo == 'nubank_ultravioleta' %}
+            <div class="small text-muted">Regular / Nu Viagens</div>
+            <div class="fw-semibold">2,2 / 9,0 mi/US$1</div>
+            {% else %}
             <div class="small text-muted">Brasil / Exterior</div>
             <div class="fw-semibold">
               {% if c.tipo == 'platinum' %}1,5 / 2,0 mi/US$1
               {% else %}2,5 / 3,5 mi/US$1{% endif %}
             </div>
+            {% endif %}
           </div>
         </div>
         <div class="text-center mt-1 small text-muted">
+          {% if c.tipo == 'nubank_ultravioleta' %}
+          Base US$ · 1 PQ a cada 4 milhas transferidas
+          {% else %}
           Base US$ · 2 PQs a cada 10 milhas acumuladas
+          {% endif %}
         </div>
       </div>
       <div class="card-footer bg-white d-flex gap-2">
@@ -47,7 +56,8 @@
           <i class="bi bi-pencil me-1"></i>Editar
         </a>
         <form method="post" action="{{ url_for('cartao_excluir', cid=c.id) }}"
-              onsubmit="return confirm('Remover cartão {{ c.nome }}?')">
+              onsubmit="return confirmarExclusaoCartao(this, '{{ c.nome | replace("'", "\\'") }}', {{ ativ_count.get(c.id, 0) }})">
+          <input type="hidden" name="force" value="0">
           <button class="btn btn-sm btn-outline-danger">
             <i class="bi bi-trash"></i>
           </button>
@@ -69,9 +79,30 @@
 
 <div class="alert alert-info mt-4 small">
   <i class="bi bi-info-circle me-1"></i>
-  <strong>Como funciona:</strong> Os gastos em R$ são convertidos pela cotação do dólar do mês para
-  apurar milhas (Platinum: 1,5 mi/US$1 no Brasil · Infinite/Black: 2,5 mi/US$1 no Brasil; taxas maiores no exterior).
-  A cada 10 milhas, geram-se 2 PQs — até o limite anual (Platinum: 5.000 · Infinite/Black: 9.000 PQs/ano).
-  O limite é reiniciado em 1º de janeiro.
+  <strong>Cartões Itaú:</strong> Gastos em R$ convertidos pela cotação do dólar.
+  Platinum: 1,5 mi/US$1 (Brasil) · 2,0 mi/US$1 (exterior). Infinite/Black: 2,5 / 3,5 mi/US$1.
+  A cada 10 milhas → 2 PQs. Limites: Platinum 5.000 · Infinite/Black 9.000 PQs/ano.
 </div>
+<div class="alert alert-danger mt-2 small">
+  <i class="bi bi-info-circle me-1"></i>
+  <strong>Nubank Ultravioleta (Modo LATAM Pass):</strong> 2,2 mi/US$1 em compras regulares · 9 mi/US$1 via Nu Viagens (voos e hotéis).
+  A cada 4 milhas transferidas → 1 PQ. O bônus de +10% automático nas transferências não conta para PQs.
+  Limite: 60.000 PQs/ano (jan–dez).
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmarExclusaoCartao(form, nome, numAtiv) {
+  if (numAtiv > 0) {
+    const ok = confirm(
+      `O cartão "${nome}" possui ${numAtiv} atividade(s) vinculada(s).\n\n` +
+      `ATENÇÃO: todas as atividades serão apagadas junto com o cartão.\n\nConfirma a exclusão?`
+    );
+    if (ok) form.querySelector('input[name="force"]').value = '1';
+    return ok;
+  }
+  return confirm(`Remover cartão "${nome}"?`);
+}
+</script>
 {% endblock %}
