@@ -29,20 +29,27 @@ PQ_SEGURO = 6.0               # por US$1
 PQ_HOSPEDAGEM = 6.0           # por US$1
 PQ_HOSPEDAGEM_MAX = 30000     # limite por reserva
 
-# Cartão Itaú — milhas por US$1 gasto (gastos em BRL são convertidos pela cotação do dia)
+# Cartão Itaú — milhas por US$1 gasto (gastos em BRL convertidos pela cotação do dia)
 # Taxas distintas para compras no Brasil vs no exterior
+# Cartão Nubank Ultravioleta — taxas distintas para Regular vs Nu Viagens
 MILHAS_CARTAO = {
-    'platinum':        {'brasil': 1.5, 'exterior': 2.0},
-    'visa_infinite':   {'brasil': 2.5, 'exterior': 3.5},
-    'mastercard_black':{'brasil': 2.5, 'exterior': 3.5},
+    'platinum':            {'brasil': 1.5, 'exterior': 2.0},
+    'visa_infinite':       {'brasil': 2.5, 'exterior': 3.5},
+    'mastercard_black':    {'brasil': 2.5, 'exterior': 3.5},
+    'nubank_ultravioleta': {'regular': 2.2, 'nu_viagens': 9.0},
 }
 
-# Cartão Itaú — limite anual de PQs
+# Limite anual de PQs por tipo de cartão
 LIMITE_ANUAL_CARTAO = {
     'platinum': 5000,
     'visa_infinite': 9000,
     'mastercard_black': 9000,
+    'nubank_ultravioleta': 60000,
 }
+
+# Conjuntos para identificar o banco do cartão
+CARTOES_ITAU   = frozenset({'platinum', 'visa_infinite', 'mastercard_black'})
+CARTOES_NUBANK = frozenset({'nubank_ultravioleta'})
 
 # PQs mensais do Clube LATAM por plano
 PQ_CLUBE_MENSAL = {
@@ -55,9 +62,10 @@ PQ_CLUBE_MENSAL = {
 
 # Nomes legíveis dos tipos de cartão
 NOME_TIPO_CARTAO = {
-    'platinum': 'Platinum',
-    'visa_infinite': 'Visa Infinite',
-    'mastercard_black': 'Mastercard Black',
+    'platinum':            'Itaú Platinum',
+    'visa_infinite':       'Itaú Visa Infinite',
+    'mastercard_black':    'Itaú Mastercard Black',
+    'nubank_ultravioleta': 'Nubank Ultravioleta',
 }
 
 # Nomes legíveis dos planos do clube
@@ -111,11 +119,18 @@ def calcular_pq_cartao(tipo_cartao, valor_brl, cotacao_dolar, local_compra, pq_j
 
     O acúmulo é baseado em US$: o valor em BRL é convertido pela cotação informada,
     depois aplica-se a taxa de milhas por US$1 conforme o local da compra.
+
+    Itaú: local_compra = 'brasil' | 'exterior'. Fórmula: (milhas / 10) × 2.
+    Nubank Ultravioleta: local_compra = 'regular' | 'nu_viagens'. Fórmula: milhas / 4.
+    O bônus de +10% automático do Nubank não conta para PQs e não é aplicado aqui.
     """
     valor_usd = valor_brl / cotacao_dolar
     taxa_milhas = MILHAS_CARTAO[tipo_cartao][local_compra]  # milhas por US$1
     milhas = valor_usd * taxa_milhas
-    pq_bruto = (milhas / 10) * 2
+    if tipo_cartao in CARTOES_NUBANK:
+        pq_bruto = milhas / 4      # 4 milhas → 1 PQ (bônus 10% não conta)
+    else:
+        pq_bruto = (milhas / 10) * 2
     limite = LIMITE_ANUAL_CARTAO[tipo_cartao]
     restante = max(0.0, limite - pq_ja_acumulado_ano)
     pq_efetivo = min(pq_bruto, restante)

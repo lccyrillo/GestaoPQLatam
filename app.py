@@ -44,7 +44,7 @@ encerrar_instancias_anteriores()
 app = Flask(__name__, template_folder=_TEMPLATE_DIR)
 app.secret_key = 'gestaopqlatam-2025'
 
-APP_VERSAO = '1.03'
+APP_VERSAO = '1.04'
 
 db.init_db()
 
@@ -67,6 +67,7 @@ TIPOS_ATIVIDADE = {
     'seguro': 'Seguro Viagem',
     'hospedagem': 'Hospedagem',
     'cartao_itau': 'Cartão de Crédito Itaú',
+    'cartao_nubank': 'Cartão de Crédito Nubank',
     'bonificacao': 'Bonificação Extra',
 }
 
@@ -251,7 +252,10 @@ def atividades_lista():
 
 @app.route('/atividades/nova', methods=['GET', 'POST'])
 def atividade_nova():
-    cartoes = db.listar_cartoes(apenas_ativos=True)
+    todos_cartoes = db.listar_cartoes(apenas_ativos=True)
+    cartoes_itau  = [c for c in todos_cartoes if c['tipo'] in calc.CARTOES_ITAU]
+    cartoes_nubank = [c for c in todos_cartoes if c['tipo'] in calc.CARTOES_NUBANK]
+    cartoes = todos_cartoes  # compat retroativa
     clube_ativo = db.obter_clube_ativo()
 
     if request.method == 'POST':
@@ -415,6 +419,37 @@ def atividade_nova():
                          f'(US$ {resultado["valor_usd"]:,.2f} · {local_label}) '
                          f'{mes:02d}/{ano_ref}')
 
+        elif tipo == 'cartao_nubank':
+            if not request.form.get('cartao_id_nubank'):
+                flash('Nenhum cartão Nubank cadastrado. Cadastre um cartão antes de lançar esta atividade.', 'danger')
+                return redirect(url_for('atividade_nova'))
+            cartao_id = int(request.form['cartao_id_nubank'])
+            valor_brl = float(request.form.get('valor_brl_nubank') or 0)
+            cotacao_dolar = float(request.form.get('cotacao_dolar_nubank') or 1)
+            local_compra = request.form.get('local_compra_nubank', 'regular')
+            mes = int(request.form.get('mes_nubank') or ANO_ATUAL)
+            ano_ref = int(request.form.get('ano_ref_nubank') or ANO_ATUAL)
+            cartao = db.obter_cartao(cartao_id)
+            pq_acumulado = db.pq_cartao_no_ano(cartao_id, ano_ref)
+            resultado = calc.calcular_pq_cartao(
+                cartao['tipo'], valor_brl, cotacao_dolar, local_compra, pq_acumulado
+            )
+            pq_estimado = resultado['pq_efetivo']
+            local_label = 'Nu Viagens' if local_compra == 'nu_viagens' else 'Compra Regular'
+            dados = {
+                'valor_brl': valor_brl, 'cotacao_dolar': cotacao_dolar,
+                'valor_usd': resultado['valor_usd'], 'local_compra': local_compra,
+                'mes': mes, 'ano': ano_ref, 'tipo_cartao': cartao['tipo'],
+                'taxa_milhas': resultado['taxa_milhas'],
+                'milhas': resultado['milhas'],
+                'pq_bruto': resultado['pq_bruto'],
+                'limite_anual': resultado['limite_anual'],
+                'ja_acumulado': resultado['ja_acumulado'],
+            }
+            descricao = (f'Cartão {cartao["nome"]} — R$ {valor_brl:,.2f} '
+                         f'(US$ {resultado["valor_usd"]:,.2f} · {local_label}) '
+                         f'{mes:02d}/{ano_ref}')
+
         elif tipo == 'bonificacao':
             descricao_manual = request.form.get('descricao_manual', '').strip()
             pq_manual = float(request.form['pq_manual'] or 0)
@@ -430,6 +465,8 @@ def atividade_nova():
         'atividades_lancar.html',
         tipos=TIPOS_ATIVIDADE,
         cartoes=cartoes,
+        cartoes_itau=cartoes_itau,
+        cartoes_nubank=cartoes_nubank,
         clube_ativo=clube_ativo,
         planos=calc.NOME_PLANO_CLUBE,
         pqs_clube=calc.PQ_CLUBE_MENSAL,
@@ -553,7 +590,8 @@ _sim_cartao_restante: dict = {}   # cartao_id → pq_restante no ciclo de simula
 _SIM_LABELS = {
     'voo': 'Voo', 'aluguel_carro': 'Aluguel Carro', 'seguro': 'Seguro',
     'hospedagem': 'Hospedagem', 'clube': 'Clube LATAM',
-    'cartao_itau': 'Cartão Itaú', 'bonificacao': 'Bonificação',
+    'cartao_itau': 'Cartão Itaú', 'cartao_nubank': 'Cartão Nubank',
+    'bonificacao': 'Bonificação',
 }
 _SIM_ID_MAP = {'aluguel_carro': 'carro', 'seguro': 'seguro', 'hospedagem': 'hosp'}
 
@@ -586,19 +624,26 @@ def simulacao():
     atividades = db.listar_atividades(ano=ano)
     pq_atual = round(sum(a['pq_estimado'] for a in atividades), 2)
 
-    cartoes = db.listar_cartoes(apenas_ativos=True)
+    todos_cartoes_sim = db.listar_cartoes(apenas_ativos=True)
     cartoes_sim = []
-    for c in cartoes:
+    cartoes_itau_sim = []
+    cartoes_nubank_sim = []
+    for c in todos_cartoes_sim:
         acumulado = db.pq_cartao_no_ano(c['id'], ano)
         limite = calc.LIMITE_ANUAL_CARTAO.get(c['tipo'], 0)
-        cartoes_sim.append({
+        entry = {
             'id': c['id'],
             'nome': c['nome'],
             'tipo': c['tipo'],
             'pq_acumulado': round(acumulado, 2),
             'limite_anual': limite,
             'pq_restante': round(max(0.0, limite - acumulado), 2),
-        })
+        }
+        cartoes_sim.append(entry)
+        if c['tipo'] in calc.CARTOES_ITAU:
+            cartoes_itau_sim.append(entry)
+        elif c['tipo'] in calc.CARTOES_NUBANK:
+            cartoes_nubank_sim.append(entry)
 
     estado = _sim_estado()
     return render_template(
@@ -606,6 +651,8 @@ def simulacao():
         pq_atual=pq_atual,
         ano=ano,
         cartoes_sim=cartoes_sim,
+        cartoes_itau_sim=cartoes_itau_sim,
+        cartoes_nubank_sim=cartoes_nubank_sim,
         clube_ativo=db.obter_clube_ativo(),
         categorias=calc.CATEGORIAS,
         planos=calc.NOME_PLANO_CLUBE,
@@ -692,11 +739,11 @@ def api_sim_adicionar():
             pq = float(pq_mes * meses)
             descricao = f'Clube LATAM — {meses} mês(es)'
 
-        elif tipo == 'cartao_itau':
+        elif tipo in ('cartao_itau', 'cartao_nubank'):
             cartao_id = int(data.get('cartao_id') or 0)
             valor     = float(data.get('valor') or 0)
             cotacao   = float(data.get('cotacao') or 0)
-            local     = data.get('local', 'brasil')
+            local     = data.get('local', 'brasil' if tipo == 'cartao_itau' else 'regular')
             if not cartao_id:
                 return jsonify({'ok': False, 'erro': 'Selecione um cartão.'})
             if valor <= 0:
@@ -710,7 +757,10 @@ def api_sim_adicionar():
             resultado = calc.calcular_pq_cartao(cartao['tipo'], valor, cotacao, local, 0)
             pq = min(float(resultado['pq_efetivo']), restante)
             _sim_cartao_restante[cartao_id] = round(max(0.0, restante - pq), 2)
-            local_label = 'EXT' if local == 'exterior' else 'BR'
+            if tipo == 'cartao_nubank':
+                local_label = 'Nu Viagens' if local == 'nu_viagens' else 'Regular'
+            else:
+                local_label = 'EXT' if local == 'exterior' else 'BR'
             descricao = f'{cartao["nome"]} R$ {valor:,.2f} ({local_label})'
             item_extra = {'_cartao_id': cartao_id}
 
@@ -747,7 +797,7 @@ def api_sim_remover():
     global _sim_items
     item_id = (request.get_json() or {}).get('id')
     item = next((i for i in _sim_items if i['id'] == item_id), None)
-    if item and item.get('tipo') == 'cartao_itau':
+    if item and item.get('tipo') in ('cartao_itau', 'cartao_nubank'):
         cid = item.get('_cartao_id')
         if cid is not None and cid in _sim_cartao_restante:
             cartao = db.obter_cartao(cid)

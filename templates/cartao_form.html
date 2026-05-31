@@ -14,7 +14,7 @@
           <div class="mb-3">
             <label class="form-label fw-semibold">Nome / Identificação <span class="text-danger">*</span></label>
             <input type="text" name="nome" class="form-control"
-                   placeholder="Ex: Itaú Black principal"
+                   placeholder="Ex: Itaú Black principal / Nubank Ultravioleta pessoal"
                    value="{{ cartao.nome if cartao else '' }}" required>
             <div class="form-text">Nome que aparecerá na seleção ao lançar atividade.</div>
           </div>
@@ -56,9 +56,10 @@
 {% block scripts %}
 <script>
 const INFO = {
-  platinum: 'Platinum — 1,5 mi/US$1 (Brasil) · 2,0 mi/US$1 (exterior) · Limite de <strong>5.000 PQs/ano</strong> · Anuidade grátis com R$4.000/mês',
-  visa_infinite: 'Visa Infinite — 2,5 mi/US$1 (Brasil) · 3,5 mi/US$1 (exterior) · Limite de <strong>9.000 PQs/ano</strong> · Anuidade grátis com R$20.000/mês',
-  mastercard_black: 'Mastercard Black — 2,5 mi/US$1 (Brasil) · 3,5 mi/US$1 (exterior) · Limite de <strong>9.000 PQs/ano</strong> · Anuidade grátis com R$20.000/mês',
+  platinum: 'Itaú Platinum — 1,5 mi/US$1 (Brasil) · 2,0 mi/US$1 (exterior) · Limite de <strong>5.000 PQs/ano</strong> · 2 PQs a cada 10 milhas',
+  visa_infinite: 'Itaú Visa Infinite — 2,5 mi/US$1 (Brasil) · 3,5 mi/US$1 (exterior) · Limite de <strong>9.000 PQs/ano</strong> · 2 PQs a cada 10 milhas',
+  mastercard_black: 'Itaú Mastercard Black — 2,5 mi/US$1 (Brasil) · 3,5 mi/US$1 (exterior) · Limite de <strong>9.000 PQs/ano</strong> · 2 PQs a cada 10 milhas',
+  nubank_ultravioleta: '<span class="text-danger fw-semibold">Nubank Ultravioleta — Modo LATAM Pass</span><br>· 2,2 mi/US$1 em compras regulares (nacional ou internacional)<br>· 9 mi/US$1 em voos e hospedagens via Nu Viagens<br>· 1 PQ a cada 4 milhas transferidas (bônus +10% automático não conta)<br>· Limite de <strong>60.000 PQs/ano</strong> (jan–dez)',
 };
 function atualizarInfo() {
   const tipo = document.getElementById('tipo_cartao').value;
