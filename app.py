@@ -253,6 +253,10 @@ def atividades_lista():
         tipo=tipo or None,
         status=status or None,
     )
+    total_pq_projetado = sum(
+        (a['pq_confirmado'] or 0) if a['status'] == 'confirmado' else a['pq_estimado']
+        for a in lista
+    )
     return render_template(
         'atividades_lista.html',
         atividades=lista,
@@ -262,6 +266,7 @@ def atividades_lista():
         status_filtro=status,
         tipos=TIPOS_ATIVIDADE,
         status_label=STATUS_LABEL,
+        total_pq_projetado=total_pq_projetado,
     )
 
 
@@ -543,7 +548,7 @@ def extrato():
         t = a['tipo']
         if t not in por_tipo:
             por_tipo[t] = {'estimado': 0, 'confirmado': 0, 'count': 0}
-        por_tipo[t]['estimado'] += a['pq_estimado']
+        por_tipo[t]['estimado'] += (a['pq_confirmado'] or 0) if a['status'] == 'confirmado' else a['pq_estimado']
         if a['status'] == 'confirmado':
             por_tipo[t]['confirmado'] += (a['pq_confirmado'] or 0)
         por_tipo[t]['count'] += 1
@@ -637,7 +642,10 @@ def _sim_estado():
 def simulacao():
     ano = ANO_ATUAL
     atividades = db.listar_atividades(ano=ano)
-    pq_atual = round(sum(a['pq_estimado'] for a in atividades), 2)
+    pq_atual = round(sum(
+        (a['pq_confirmado'] or 0) if a['status'] == 'confirmado' else a['pq_estimado']
+        for a in atividades
+    ), 2)
 
     todos_cartoes_sim = db.listar_cartoes(apenas_ativos=True)
     cartoes_sim = []

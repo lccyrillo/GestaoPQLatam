@@ -316,7 +316,12 @@ def totais_extrato(ano=None):
 
         row = conn.execute(f'''
             SELECT
-                COALESCE(SUM(pq_estimado), 0)    AS total_estimado,
+                COALESCE(SUM(
+                    CASE WHEN status='confirmado'
+                         THEN COALESCE(pq_confirmado, pq_estimado)
+                         ELSE pq_estimado
+                    END
+                ), 0)                            AS total_estimado,
                 COALESCE(SUM(CASE WHEN status='confirmado' THEN pq_confirmado ELSE 0 END), 0)
                                                  AS total_confirmado,
                 COUNT(*)                          AS total_atividades,
