@@ -47,6 +47,7 @@ app.secret_key = 'gestaopqlatam-2025'
 APP_VERSAO = '1.04'
 
 db.init_db()
+db.aplicar_migracoes()
 
 
 @app.context_processor
@@ -121,11 +122,13 @@ def dashboard():
 @app.route('/cartoes')
 def cartoes():
     lista = db.listar_cartoes()
+    ativ_count = {c['id']: db.contar_atividades_cartao(c['id']) for c in lista}
     return render_template(
         'cartoes.html',
         cartoes=lista,
         tipos_cartao=calc.NOME_TIPO_CARTAO,
         limites=calc.LIMITE_ANUAL_CARTAO,
+        ativ_count=ativ_count,
     )
 
 
@@ -165,8 +168,20 @@ def cartao_editar(cid):
 
 @app.route('/cartoes/<int:cid>/excluir', methods=['POST'])
 def cartao_excluir(cid):
+    num_ativ = db.contar_atividades_cartao(cid)
+    force = request.form.get('force') == '1'
+    if num_ativ > 0 and not force:
+        flash(
+            f'Este cartão possui {num_ativ} atividade(s) vinculada(s). '
+            'Use o botão de exclusão na página para confirmar — todas as atividades serão apagadas.',
+            'danger'
+        )
+        return redirect(url_for('cartoes'))
     db.excluir_cartao(cid)
-    flash('Cartão removido.', 'success')
+    if num_ativ > 0:
+        flash(f'Cartão e {num_ativ} atividade(s) vinculada(s) removidos.', 'success')
+    else:
+        flash('Cartão removido.', 'success')
     return redirect(url_for('cartoes'))
 
 
