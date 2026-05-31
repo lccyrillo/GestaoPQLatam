@@ -21,7 +21,7 @@
       <div class="card-body text-center">
         <div class="text-muted small mb-1">Total Estimado</div>
         <div class="display-6 fw-bold text-primary pq-num">{{ totais.total_estimado | fmt_pq }}</div>
-        <div class="small text-muted">PQs (todas as atividades)</div>
+        <div class="small text-muted">Confirmados + estimados pendentes</div>
       </div>
     </div>
   </div>
@@ -147,7 +147,14 @@
           <td class="small text-nowrap">{{ a.data_atividade | fmt_data }}</td>
           <td><span class="badge bg-secondary">{{ tipos.get(a.tipo, a.tipo) }}</span></td>
           <td class="small">{{ a.descricao }}</td>
-          <td class="text-end pq-num text-primary fw-semibold">{{ a.pq_estimado | fmt_pq }}</td>
+          <td class="text-end pq-num fw-semibold">
+            {% if a.status == 'confirmado' %}
+              <span class="text-success">{{ a.pq_confirmado | fmt_pq }}</span>
+              <span class="text-muted fw-normal small">({{ a.pq_estimado | fmt_pq }})</span>
+            {% else %}
+              <span class="text-primary">{{ a.pq_estimado | fmt_pq }}</span>
+            {% endif %}
+          </td>
           <td class="text-end pq-num {% if a.pq_confirmado %}text-success fw-semibold{% else %}text-muted{% endif %}">
             {{ a.pq_confirmado | fmt_pq }}
           </td>

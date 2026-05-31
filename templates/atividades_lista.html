@@ -66,7 +66,14 @@
           <td class="text-nowrap small">{{ a.data_atividade | fmt_data }}</td>
           <td><span class="badge bg-secondary">{{ tipos.get(a.tipo, a.tipo) }}</span></td>
           <td class="small">{{ a.descricao }}</td>
-          <td class="text-end pq-num fw-semibold text-primary">{{ a.pq_estimado | fmt_pq }}</td>
+          <td class="text-end pq-num fw-semibold">
+            {% if a.status == 'confirmado' %}
+              <span class="text-success">{{ a.pq_confirmado | fmt_pq }}</span>
+              <span class="text-muted fw-normal small">({{ a.pq_estimado | fmt_pq }})</span>
+            {% else %}
+              <span class="text-primary">{{ a.pq_estimado | fmt_pq }}</span>
+            {% endif %}
+          </td>
           <td class="text-end pq-num fw-semibold {% if a.pq_confirmado %}text-success{% else %}text-muted{% endif %}">
             {{ a.pq_confirmado | fmt_pq }}
           </td>
@@ -102,13 +109,13 @@
         <tr>
           <td colspan="3" class="text-end small">Total</td>
           <td class="text-end pq-num text-primary">
-            {{ atividades | sum(attribute='pq_estimado') | int | string | replace('000', '.000') }}
+            {{ total_pq_projetado | int | fmt_pq }}
           </td>
           <td class="text-end pq-num text-success">
             {{ atividades | selectattr('status','eq','confirmado')
                           | map(attribute='pq_confirmado')
                           | select
-                          | sum | int | string | replace('000', '.000') }}
+                          | sum | int | fmt_pq }}
           </td>
           <td colspan="2"></td>
         </tr>
