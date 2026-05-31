@@ -44,7 +44,7 @@ encerrar_instancias_anteriores()
 app = Flask(__name__, template_folder=_TEMPLATE_DIR)
 app.secret_key = 'gestaopqlatam-2025'
 
-APP_VERSAO = '1.06'
+APP_VERSAO = '1.07'
 
 db.init_db()
 db.aplicar_migracoes()
