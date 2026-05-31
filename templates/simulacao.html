@@ -228,6 +228,8 @@
           </div>
         </div>
 
+        <div id="sim-erro" class="alert alert-danger py-2 small d-none mt-2" role="alert"></div>
+
         <button type="button" class="btn btn-success btn-sm w-100 mt-2" id="sim-btn-add"
                 onclick="simAdicionar()" disabled>
           <i class="bi bi-plus-lg me-1"></i>Adicionar à simulação
@@ -281,7 +283,7 @@
 
 {% block scripts %}
 <script>
-// ── Constantes (espelho de calculadora.py) ────────────────────────────────────
+// ── Constantes (apenas para preview local — cálculo definitivo é no servidor) ─
 const PQ_ATUAL      = {{ pq_atual }};
 const PQ_VOO_DOM    = 3;
 const PQ_VOO_INT    = 6;
@@ -299,14 +301,6 @@ const MILHAS_CARTAO = {{ milhas_cartao | tojson }};
 const CARTOES_SIM   = {{ cartoes_sim | tojson }};
 const CATEGORIAS    = {{ categorias | tojson }};
 
-// Limite anual restante por cartão (vai sendo consumido conforme itens são adicionados)
-let cartaoRestante = {};
-CARTOES_SIM.forEach(c => { cartaoRestante[c.id] = c.pq_restante; });
-
-// ── Estado da simulação ───────────────────────────────────────────────────────
-let simItems   = [];
-let simCounter = 0;
-
 function fmtPq(v) {
   return Math.round(v).toLocaleString('pt-BR');
 }
@@ -318,6 +312,7 @@ function simMostrarCampos() {
   if (tipo) document.getElementById(`sim-bloco-${tipo}`)?.classList.remove('d-none');
   document.getElementById('sim-btn-add').disabled = !tipo;
   simLimparPreviews();
+  simLimparErro();
 }
 
 function simAtualizarVoo() {
@@ -336,7 +331,7 @@ function simLimparPreviews() {
   });
 }
 
-// ── Previews de PQ ───────────────────────────────────────────────────────────
+// ── Previews locais (apenas indicativos) ─────────────────────────────────────
 function simPreviewVoo() {
   const tipoVoo  = document.getElementById('sim-tipo-voo').value;
   const valor    = parseFloat(document.getElementById('sim-voo-valor').value) || 0;
@@ -345,7 +340,6 @@ function simPreviewVoo() {
   const classInt = document.getElementById('sim-voo-classe-int').value;
   const classe   = tipoVoo === 'domestico' ? classDom : classInt;
   const bonus    = document.getElementById('sim-voo-bonus').checked;
-
   let tarifaCalc = valor;
   if (tipoVoo === 'internacional') {
     if (cotacao <= 0) { document.getElementById('sim-voo-preview').textContent = ''; return; }
@@ -375,9 +369,8 @@ function simPreviewUsd(id) {
 function simPreviewClube() {
   const meses = parseInt(document.getElementById('sim-clube-meses')?.value) || 0;
   const pqMes = PQ_CLUBE[CLUBE_PLANO] || 0;
-  const pq    = pqMes * meses;
   const el    = document.getElementById('sim-clube-preview');
-  if (el) el.innerHTML = `${meses} × ${fmtPq(pqMes)} = <strong>${fmtPq(pq)} PQs</strong>`;
+  if (el) el.innerHTML = `${meses} × ${fmtPq(pqMes)} = <strong>${fmtPq(pqMes * meses)} PQs</strong>`;
 }
 
 function simPreviewCartao() {
@@ -389,150 +382,55 @@ function simPreviewCartao() {
   const cotacao = parseFloat(document.getElementById('sim-cartao-cotacao').value) || 0;
   const local   = document.querySelector('input[name="sim-local"]:checked')?.value || 'brasil';
   const el      = document.getElementById('sim-cartao-preview');
-  if (!el) return;
-  if (!tipo || cotacao <= 0) { el.textContent = ''; return; }
+  if (!el || !tipo || cotacao <= 0) { if (el) el.textContent = ''; return; }
   const taxa    = (MILHAS_CARTAO[tipo] || {})[local] || 0;
   const usd     = valor / cotacao;
-  const milhas  = usd * taxa;
-  const pqBruto = (milhas / 10) * 2;
-  const cartaoId = parseInt(sel.value);
-  const restante = cartaoRestante[cartaoId] ?? 0;
-  const pqEfetivo = Math.min(pqBruto, restante);
-  const aviso = pqEfetivo < pqBruto ? ` <span class="text-warning">(limitado — restam ${fmtPq(restante)} PQs)</span>` : '';
-  el.innerHTML = `US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${taxa} mi → <strong>${fmtPq(pqEfetivo)} PQs</strong>${aviso}`;
+  const pq      = (usd * taxa / 10) * 2;
+  el.innerHTML  = `US$ ${usd.toLocaleString('pt-BR',{minimumFractionDigits:2})} × ${taxa} mi → <strong>${fmtPq(pq)} PQs</strong>`;
 }
 
-// ── Adicionar item ────────────────────────────────────────────────────────────
-function simAdicionar() {
-  const tipo = document.getElementById('sim-tipo').value;
-  if (!tipo) return;
-
-  let pq = 0, descricao = '';
-
-  if (tipo === 'voo') {
-    const tipoVoo  = document.getElementById('sim-tipo-voo').value;
-    const valor    = parseFloat(document.getElementById('sim-voo-valor').value) || 0;
-    const cotacao  = parseFloat(document.getElementById('sim-voo-cotacao').value) || 0;
-    const classDom = document.getElementById('sim-voo-classe-dom').value;
-    const classInt = document.getElementById('sim-voo-classe-int').value;
-    const classe   = tipoVoo === 'domestico' ? classDom : classInt;
-    const bonus    = document.getElementById('sim-voo-bonus').checked;
-    let tarifaCalc = valor;
-    if (tipoVoo === 'internacional') {
-      if (cotacao <= 0) return;
-      tarifaCalc = valor / cotacao;
+// ── Feedback de erro ──────────────────────────────────────────────────────────
+function simErro(msg, campoId) {
+  const erroEl = document.getElementById('sim-erro');
+  erroEl.textContent = msg;
+  erroEl.classList.remove('d-none');
+  if (campoId) {
+    const el = document.getElementById(campoId);
+    if (el) {
+      el.classList.add('is-invalid');
+      el.focus();
+      el.addEventListener('input', () => {
+        el.classList.remove('is-invalid');
+        erroEl.classList.add('d-none');
+      }, { once: true });
     }
-    const pqBase   = tarifaCalc * (tipoVoo === 'domestico' ? PQ_VOO_DOM : PQ_VOO_INT);
-    const elegivel = tipoVoo === 'domestico' ? BONUS_DOM.has(classe) : BONUS_INT.has(classe);
-    pq = (bonus && elegivel) ? pqBase * 1.5 : pqBase;
-    descricao = `Voo ${tipoVoo === 'domestico' ? 'Dom.' : 'Int.'} R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
-
-  } else if (['aluguel_carro','seguro','hospedagem'].includes(tipo)) {
-    const id     = tipo === 'aluguel_carro' ? 'carro' : tipo === 'seguro' ? 'seguro' : 'hosp';
-    const valor  = parseFloat(document.getElementById(`sim-${id}-valor`)?.value) || 0;
-    const cot    = parseFloat(document.getElementById(`sim-${id}-cotacao`)?.value) || 0;
-    if (cot <= 0) return;
-    const usd    = valor / cot;
-    const pqPor  = tipo === 'aluguel_carro' ? PQ_ALUGUEL : tipo === 'seguro' ? PQ_SEGURO : PQ_HOSP;
-    pq = Math.min(usd * pqPor, tipo === 'hospedagem' ? PQ_HOSP_MAX : Infinity);
-    const labels = {aluguel_carro:'Aluguel Carro', seguro:'Seguro Viagem', hospedagem:'Hospedagem'};
-    descricao = `${labels[tipo]} R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
-
-  } else if (tipo === 'clube') {
-    const meses = parseInt(document.getElementById('sim-clube-meses')?.value) || 0;
-    const pqMes = PQ_CLUBE[CLUBE_PLANO] || 0;
-    if (!meses || !pqMes) return;
-    pq = pqMes * meses;
-    descricao = `Clube LATAM — ${meses} mês(es)`;
-
-  } else if (tipo === 'cartao_itau') {
-    const sel     = document.getElementById('sim-cartao-id');
-    const opt     = sel?.options[sel.selectedIndex];
-    const cartaoId = parseInt(sel?.value);
-    const tipoCt  = opt?.dataset.tipo || '';
-    const valor   = parseFloat(document.getElementById('sim-cartao-valor').value) || 0;
-    const cotacao = parseFloat(document.getElementById('sim-cartao-cotacao').value) || 0;
-    const local   = document.querySelector('input[name="sim-local"]:checked')?.value || 'brasil';
-    if (!tipoCt || cotacao <= 0) return;
-    const taxa    = (MILHAS_CARTAO[tipoCt] || {})[local] || 0;
-    const usd     = valor / cotacao;
-    const milhas  = usd * taxa;
-    const pqBruto = (milhas / 10) * 2;
-    const restante = cartaoRestante[cartaoId] ?? 0;
-    pq = Math.min(pqBruto, restante);
-    cartaoRestante[cartaoId] = Math.max(0, restante - pq);
-    const nomeCartao = CARTOES_SIM.find(c => c.id === cartaoId)?.nome || 'Cartão';
-    descricao = `${nomeCartao} R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2})} (${local === 'brasil' ? 'BR' : 'EXT'})`;
-
-  } else if (tipo === 'bonificacao') {
-    pq = parseFloat(document.getElementById('sim-bonus-pq')?.value) || 0;
-    descricao = document.getElementById('sim-bonus-desc')?.value.trim() || 'Bonificação extra';
-    if (!pq) return;
   }
-
-  if (pq <= 0 && tipo !== 'bonificacao') return;
-
-  const labels = {
-    voo:'Voo', aluguel_carro:'Aluguel Carro', seguro:'Seguro',
-    hospedagem:'Hospedagem', clube:'Clube LATAM',
-    cartao_itau:'Cartão Itaú', bonificacao:'Bonificação'
-  };
-
-  simItems.push({ id: simCounter++, tipo, label: labels[tipo] || tipo, descricao, pq: Math.round(pq) });
-  simRenderTabela();
-  simAtualizarPainel();
-  simResetForm();
 }
 
-function simResetForm() {
-  document.getElementById('sim-tipo').value = '';
-  document.querySelectorAll('.sim-bloco').forEach(b => b.classList.add('d-none'));
-  document.getElementById('sim-btn-add').disabled = true;
-  simLimparPreviews();
+function simLimparErro() {
+  document.getElementById('sim-erro').classList.add('d-none');
+  document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
 }
 
-// ── Remover item ──────────────────────────────────────────────────────────────
-function simRemover(id) {
-  const item = simItems.find(i => i.id === id);
-  // Devolve o limite ao cartão se for cartão
-  if (item?.tipo === 'cartao_itau') {
-    const cartao = CARTOES_SIM.find(c =>
-      item.descricao.startsWith(c.nome));
-    if (cartao) cartaoRestante[cartao.id] = Math.min(
-      cartao.pq_restante,
-      (cartaoRestante[cartao.id] ?? 0) + item.pq
-    );
-  }
-  simItems = simItems.filter(i => i.id !== id);
-  simRenderTabela();
-  simAtualizarPainel();
-}
+// ── Renderizar tabela (dados vindos do servidor) ──────────────────────────────
+const simVazioEl = document.getElementById('sim-vazio');
 
-function simLimpar() {
-  simItems = [];
-  CARTOES_SIM.forEach(c => { cartaoRestante[c.id] = c.pq_restante; });
-  simRenderTabela();
-  simAtualizarPainel();
-}
+function simRenderTabela(itens) {
+  const tbody = document.getElementById('sim-tbody');
+  const tfoot = document.getElementById('sim-tfoot');
 
-// ── Renderizar tabela ─────────────────────────────────────────────────────────
-function simRenderTabela() {
-  const tbody  = document.getElementById('sim-tbody');
-  const tfoot  = document.getElementById('sim-tfoot');
-  const vazio  = document.getElementById('sim-vazio');
-
-  if (simItems.length === 0) {
+  if (!itens || itens.length === 0) {
     tbody.innerHTML = '';
-    tbody.appendChild(vazio);
-    vazio.style.display = '';
+    tbody.appendChild(simVazioEl);
+    simVazioEl.style.display = '';
     tfoot.style.display = 'none';
     return;
   }
 
-  vazio.style.display = 'none';
+  simVazioEl.style.display = 'none';
   tbody.innerHTML = '';
   let total = 0;
-  simItems.forEach((item, idx) => {
+  itens.forEach((item, idx) => {
     total += item.pq;
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -552,18 +450,16 @@ function simRenderTabela() {
 }
 
 // ── Atualizar painel de categorias ───────────────────────────────────────────
-function simAtualizarPainel() {
-  const pqSim   = simItems.reduce((s, i) => s + i.pq, 0);
+function simAtualizarPainel(pqSim) {
   const pqTotal = PQ_ATUAL + pqSim;
-
   document.getElementById('card-simulado').textContent = fmtPq(pqSim);
   document.getElementById('card-total').textContent    = fmtPq(pqTotal);
 
   CATEGORIAS.forEach(([nome, meta], i) => {
-    const idx = i + 1;
+    const idx      = i + 1;
     const pctAtual = Math.min(100, (PQ_ATUAL / meta) * 100);
     const pctSim   = Math.min(100 - pctAtual, (pqSim / meta) * 100);
-    const atingida = pqTotal >= meta;
+    const atingida   = pqTotal >= meta;
     const jaAtingida = PQ_ATUAL >= meta;
 
     document.getElementById(`cat-bar-atual-${idx}`).style.width = pctAtual + '%';
@@ -578,14 +474,119 @@ function simAtualizarPainel() {
       statusEl.innerHTML = '<span class="text-success fw-semibold">✓ Atingida com simulação!</span>';
       nomeEl.className = 'fw-semibold text-success';
     } else {
-      const faltam = meta - pqTotal;
-      statusEl.innerHTML = `Faltam ${fmtPq(faltam)} PQs`;
+      statusEl.innerHTML = `Faltam ${fmtPq(meta - pqTotal)} PQs`;
       nomeEl.className = 'fw-semibold';
     }
   });
 }
 
-// Inicialização
-simAtualizarPainel();
+function simAtualizarTudo(data) {
+  simRenderTabela(data.itens);
+  simAtualizarPainel(data.pq_simulado);
+}
+
+// ── Helpers de comunicação ────────────────────────────────────────────────────
+async function simPost(url, payload) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload || {}),
+  });
+  return resp.json();
+}
+
+function simSetBtnLoading(loading) {
+  const btn = document.getElementById('sim-btn-add');
+  const tipo = document.getElementById('sim-tipo').value;
+  btn.disabled = loading || !tipo;
+  btn.innerHTML = loading
+    ? '<span class="spinner-border spinner-border-sm me-1"></span>Calculando…'
+    : '<i class="bi bi-plus-lg me-1"></i>Adicionar à simulação';
+}
+
+// ── Adicionar item ────────────────────────────────────────────────────────────
+async function simAdicionar() {
+  const tipo = document.getElementById('sim-tipo').value;
+  if (!tipo) return;
+  simLimparErro();
+
+  const payload = { tipo };
+
+  if (tipo === 'voo') {
+    const tipoVoo = document.getElementById('sim-tipo-voo').value;
+    payload.tipo_voo = tipoVoo;
+    payload.valor    = parseFloat(document.getElementById('sim-voo-valor').value) || 0;
+    payload.cotacao  = parseFloat(document.getElementById('sim-voo-cotacao').value) || 0;
+    payload.classe   = tipoVoo === 'domestico'
+      ? document.getElementById('sim-voo-classe-dom').value
+      : document.getElementById('sim-voo-classe-int').value;
+    payload.bonus    = document.getElementById('sim-voo-bonus').checked;
+
+  } else if (['aluguel_carro','seguro','hospedagem'].includes(tipo)) {
+    const id = tipo === 'aluguel_carro' ? 'carro' : tipo === 'seguro' ? 'seguro' : 'hosp';
+    payload.valor   = parseFloat(document.getElementById(`sim-${id}-valor`)?.value) || 0;
+    payload.cotacao = parseFloat(document.getElementById(`sim-${id}-cotacao`)?.value) || 0;
+
+  } else if (tipo === 'clube') {
+    payload.meses = parseInt(document.getElementById('sim-clube-meses')?.value) || 0;
+
+  } else if (tipo === 'cartao_itau') {
+    payload.cartao_id = parseInt(document.getElementById('sim-cartao-id')?.value) || 0;
+    payload.valor     = parseFloat(document.getElementById('sim-cartao-valor').value) || 0;
+    payload.cotacao   = parseFloat(document.getElementById('sim-cartao-cotacao').value) || 0;
+    payload.local     = document.querySelector('input[name="sim-local"]:checked')?.value || 'brasil';
+
+  } else if (tipo === 'bonificacao') {
+    payload.pq        = parseFloat(document.getElementById('sim-bonus-pq')?.value) || 0;
+    payload.descricao = document.getElementById('sim-bonus-desc')?.value.trim() || '';
+  }
+
+  simSetBtnLoading(true);
+  try {
+    const data = await simPost('/api/simulacao/adicionar', payload);
+    if (!data.ok) {
+      simErro(data.erro, data.campo);
+    } else {
+      simAtualizarTudo(data);
+      simResetForm();
+    }
+  } catch (e) {
+    simErro('Erro de comunicação com o servidor. Tente novamente.');
+  } finally {
+    simSetBtnLoading(false);
+  }
+}
+
+function simResetForm() {
+  document.getElementById('sim-tipo').value = '';
+  document.querySelectorAll('.sim-bloco').forEach(b => b.classList.add('d-none'));
+  document.getElementById('sim-btn-add').disabled = true;
+  simLimparPreviews();
+  simLimparErro();
+}
+
+// ── Remover item ──────────────────────────────────────────────────────────────
+async function simRemover(id) {
+  try {
+    const data = await simPost('/api/simulacao/remover', {id});
+    if (data.ok) simAtualizarTudo(data);
+  } catch (e) {
+    console.error('Erro ao remover item:', e);
+  }
+}
+
+// ── Limpar tudo ───────────────────────────────────────────────────────────────
+async function simLimpar() {
+  try {
+    const data = await simPost('/api/simulacao/limpar');
+    if (data.ok) simAtualizarTudo(data);
+  } catch (e) {
+    console.error('Erro ao limpar simulação:', e);
+  }
+}
+
+// ── Inicialização ─────────────────────────────────────────────────────────────
+simRenderTabela({{ sim_items | tojson }});
+simAtualizarPainel({{ pq_simulado }});
 </script>
 {% endblock %}

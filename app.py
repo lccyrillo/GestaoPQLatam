@@ -44,7 +44,7 @@ encerrar_instancias_anteriores()
 app = Flask(__name__, template_folder=_TEMPLATE_DIR)
 app.secret_key = 'gestaopqlatam-2025'
 
-APP_VERSAO = '1.02'
+APP_VERSAO = '1.03'
 
 db.init_db()
 
@@ -545,6 +545,41 @@ def api_info_clube():
 
 # ── Simulação ─────────────────────────────────────────────────────────────────
 
+# Estado em memória — persiste enquanto o servidor estiver rodando
+_sim_items: list = []
+_sim_counter: int = 0
+_sim_cartao_restante: dict = {}   # cartao_id → pq_restante no ciclo de simulação
+
+_SIM_LABELS = {
+    'voo': 'Voo', 'aluguel_carro': 'Aluguel Carro', 'seguro': 'Seguro',
+    'hospedagem': 'Hospedagem', 'clube': 'Clube LATAM',
+    'cartao_itau': 'Cartão Itaú', 'bonificacao': 'Bonificação',
+}
+_SIM_ID_MAP = {'aluguel_carro': 'carro', 'seguro': 'seguro', 'hospedagem': 'hosp'}
+
+
+def _sim_init_cartao(cartao_id: int) -> float:
+    """Retorna o limite restante do cartão na simulação, inicializando se necessário."""
+    if cartao_id not in _sim_cartao_restante:
+        cartao = db.obter_cartao(cartao_id)
+        if not cartao:
+            return 0.0
+        acumulado = db.pq_cartao_no_ano(cartao_id, ANO_ATUAL)
+        limite = calc.LIMITE_ANUAL_CARTAO.get(cartao['tipo'], 0)
+        _sim_cartao_restante[cartao_id] = round(max(0.0, limite - acumulado), 2)
+    return _sim_cartao_restante[cartao_id]
+
+
+def _sim_estado():
+    pq_simulado = sum(i['pq'] for i in _sim_items)
+    # Expõe apenas os campos seguros para o cliente (sem cartao_id interno)
+    itens_pub = [
+        {k: v for k, v in i.items() if k != '_cartao_id'}
+        for i in _sim_items
+    ]
+    return {'ok': True, 'itens': itens_pub, 'pq_simulado': pq_simulado}
+
+
 @app.route('/simulacao')
 def simulacao():
     ano = ANO_ATUAL
@@ -565,6 +600,7 @@ def simulacao():
             'pq_restante': round(max(0.0, limite - acumulado), 2),
         })
 
+    estado = _sim_estado()
     return render_template(
         'simulacao.html',
         pq_atual=pq_atual,
@@ -590,7 +626,148 @@ def simulacao():
         tarifas_bonus_dom=list(calc.TARIFAS_BONUS_DOMESTICO),
         tarifas_bonus_int=list(calc.TARIFAS_BONUS_INTERNACIONAL),
         milhas_cartao=calc.MILHAS_CARTAO,
+        sim_items=estado['itens'],
+        pq_simulado=estado['pq_simulado'],
     )
+
+
+@app.route('/api/simulacao/adicionar', methods=['POST'])
+def api_sim_adicionar():
+    global _sim_counter
+    data = request.get_json() or {}
+    tipo = data.get('tipo', '')
+
+    pq = 0.0
+    descricao = ''
+    item_extra = {}
+
+    try:
+        if tipo == 'voo':
+            tipo_voo = data.get('tipo_voo', 'domestico')
+            valor    = float(data.get('valor') or 0)
+            cotacao  = float(data.get('cotacao') or 0)
+            classe   = data.get('classe', '')
+            bonus    = bool(data.get('bonus', False))
+            if valor <= 0:
+                return jsonify({'ok': False, 'erro': 'Informe o valor da tarifa.', 'campo': 'sim-voo-valor'})
+            if tipo_voo == 'internacional':
+                if cotacao <= 0:
+                    return jsonify({'ok': False, 'erro': 'Informe a cotação do dólar para voo internacional.', 'campo': 'sim-voo-cotacao'})
+                valor_calc = valor / cotacao
+            else:
+                valor_calc = valor
+            pq, _ = calc.calcular_pq_voo(tipo_voo, valor_calc, classe, bonus)
+            descricao = f'Voo {"Dom." if tipo_voo == "domestico" else "Int."} R$ {valor:,.2f}'
+
+        elif tipo in ('aluguel_carro', 'seguro', 'hospedagem'):
+            valor   = float(data.get('valor') or 0)
+            cotacao = float(data.get('cotacao') or 0)
+            campo_id = _SIM_ID_MAP[tipo]
+            if valor <= 0:
+                return jsonify({'ok': False, 'erro': 'Informe o valor em reais.', 'campo': f'sim-{campo_id}-valor'})
+            if cotacao <= 0:
+                return jsonify({'ok': False, 'erro': 'Informe a cotação do dólar (R$/US$).', 'campo': f'sim-{campo_id}-cotacao'})
+            valor_usd = valor / cotacao
+            if tipo == 'aluguel_carro':
+                pq = calc.calcular_pq_aluguel_carro(valor_usd)
+                label = 'Aluguel Carro'
+            elif tipo == 'seguro':
+                pq = calc.calcular_pq_seguro(valor_usd)
+                label = 'Seguro Viagem'
+            else:
+                pq = calc.calcular_pq_hospedagem(valor_usd)
+                label = 'Hospedagem'
+            descricao = f'{label} R$ {valor:,.2f}'
+
+        elif tipo == 'clube':
+            clube_ativo = db.obter_clube_ativo()
+            if not clube_ativo:
+                return jsonify({'ok': False, 'erro': 'Nenhuma assinatura ativa do Clube LATAM.'})
+            meses = int(data.get('meses') or 0)
+            if meses <= 0:
+                return jsonify({'ok': False, 'erro': 'Informe quantos meses deseja simular.', 'campo': 'sim-clube-meses'})
+            pq_mes = calc.PQ_CLUBE_MENSAL.get(clube_ativo['plano'], 0)
+            if not pq_mes:
+                return jsonify({'ok': False, 'erro': 'O plano ativo não gera PQs mensais diretamente.'})
+            pq = float(pq_mes * meses)
+            descricao = f'Clube LATAM — {meses} mês(es)'
+
+        elif tipo == 'cartao_itau':
+            cartao_id = int(data.get('cartao_id') or 0)
+            valor     = float(data.get('valor') or 0)
+            cotacao   = float(data.get('cotacao') or 0)
+            local     = data.get('local', 'brasil')
+            if not cartao_id:
+                return jsonify({'ok': False, 'erro': 'Selecione um cartão.'})
+            if valor <= 0:
+                return jsonify({'ok': False, 'erro': 'Informe o valor do gasto.', 'campo': 'sim-cartao-valor'})
+            if cotacao <= 0:
+                return jsonify({'ok': False, 'erro': 'Informe a cotação do dólar (R$/US$).', 'campo': 'sim-cartao-cotacao'})
+            cartao = db.obter_cartao(cartao_id)
+            if not cartao:
+                return jsonify({'ok': False, 'erro': 'Cartão não encontrado.'})
+            restante  = _sim_init_cartao(cartao_id)
+            resultado = calc.calcular_pq_cartao(cartao['tipo'], valor, cotacao, local, 0)
+            pq = min(float(resultado['pq_efetivo']), restante)
+            _sim_cartao_restante[cartao_id] = round(max(0.0, restante - pq), 2)
+            local_label = 'EXT' if local == 'exterior' else 'BR'
+            descricao = f'{cartao["nome"]} R$ {valor:,.2f} ({local_label})'
+            item_extra = {'_cartao_id': cartao_id}
+
+        elif tipo == 'bonificacao':
+            pq        = float(data.get('pq') or 0)
+            descricao = (data.get('descricao') or '').strip() or 'Bonificação extra'
+            if pq <= 0:
+                return jsonify({'ok': False, 'erro': 'Informe a quantidade de PQs da bonificação.', 'campo': 'sim-bonus-pq'})
+
+        else:
+            return jsonify({'ok': False, 'erro': 'Tipo de atividade inválido.'})
+
+    except Exception as e:
+        return jsonify({'ok': False, 'erro': f'Erro no cálculo: {e}'})
+
+    if pq <= 0 and tipo != 'bonificacao':
+        return jsonify({'ok': False, 'erro': 'O valor informado resultou em 0 PQs. Verifique os campos.'})
+
+    item = {
+        'id': _sim_counter,
+        'tipo': tipo,
+        'label': _SIM_LABELS.get(tipo, tipo),
+        'descricao': descricao,
+        'pq': round(pq),
+        **item_extra,
+    }
+    _sim_counter += 1
+    _sim_items.append(item)
+    return jsonify(_sim_estado())
+
+
+@app.route('/api/simulacao/remover', methods=['POST'])
+def api_sim_remover():
+    global _sim_items
+    item_id = (request.get_json() or {}).get('id')
+    item = next((i for i in _sim_items if i['id'] == item_id), None)
+    if item and item.get('tipo') == 'cartao_itau':
+        cid = item.get('_cartao_id')
+        if cid is not None and cid in _sim_cartao_restante:
+            cartao = db.obter_cartao(cid)
+            if cartao:
+                acumulado    = db.pq_cartao_no_ano(cid, ANO_ATUAL)
+                limite       = calc.LIMITE_ANUAL_CARTAO.get(cartao['tipo'], 0)
+                max_restante = round(max(0.0, limite - acumulado), 2)
+                _sim_cartao_restante[cid] = min(
+                    max_restante, _sim_cartao_restante[cid] + item['pq']
+                )
+    _sim_items = [i for i in _sim_items if i['id'] != item_id]
+    return jsonify(_sim_estado())
+
+
+@app.route('/api/simulacao/limpar', methods=['POST'])
+def api_sim_limpar():
+    global _sim_items, _sim_cartao_restante
+    _sim_items = []
+    _sim_cartao_restante = {}
+    return jsonify(_sim_estado())
 
 
 # ── Console SQL ───────────────────────────────────────────────────────────────
