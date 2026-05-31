@@ -69,6 +69,12 @@
             <i class="bi bi-calculator me-1"></i>Simulação
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint=='custo_pq' %}active{% endif %}"
+             href="{{ url_for('custo_pq') }}">
+            <i class="bi bi-currency-dollar me-1"></i>Custo de PQs
+          </a>
+        </li>
       </ul>
       <a class="btn btn-outline-light btn-sm" href="{{ url_for('atividade_nova') }}">
         <i class="bi bi-plus-lg me-1"></i>Lançar Atividade

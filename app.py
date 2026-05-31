@@ -869,6 +869,11 @@ def sql_console():
     return render_template('sql_console.html', query=query, colunas=colunas, linhas=linhas, erro=erro, tabelas=tabelas)
 
 
+@app.route('/custo-pq')
+def custo_pq():
+    return render_template('custo_pq.html')
+
+
 # ── Inicialização ─────────────────────────────────────────────────────────────
 
 def abrir_navegador():
